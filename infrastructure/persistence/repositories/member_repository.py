@@ -1,17 +1,26 @@
-from domain.member.repository import MemberRepository
+# infrastructure/persistence/repositories/member_repository.py
 from domain.member.entities import Member
-from infrastructure.persistence.mappers import to_orm, to_domain
+from domain.member.value_objects import MemberRole
 from infrastructure.persistence.django_models.member_model import MemberModel
+from domain.member.status import MemberStatus
 
-class DjangoMemberRepository(MemberRepository):
+class DjangoMemberRepository:
+    def add(self, member: Member):
+        MemberModel.objects.create(
+            member_id=member.id,
+            name=member.name,
+            email=member.email,
+            role=member.role.value,
+            status=member.status.value,
+        )
 
-    def add(self, member: Member) -> None:
-        orm_member = to_orm(member)
-        orm_member.save()
-
-    def get_by_id(self, member_id: str) -> Member | None:
-        try:
-            orm_member = MemberModel.objects.get(id=member_id)
-            return to_domain(orm_member)
-        except MemberModel.DoesNotExist:
-            return None
+    def get_by_id(self, member_id) -> Member:
+        m = MemberModel.objects.get(member_id=member_id)
+        return Member(
+            id=m.member_id,
+            name=m.name,
+            email=m.email,
+            role=MemberRole(m.role),
+            status=MemberStatus(m.status),
+            created_at=m.created_at,
+        )

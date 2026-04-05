@@ -5,7 +5,9 @@ class MemberModel(models.Model):
     member_id = models.UUIDField(primary_key=True, editable=False)
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
+    role = models.CharField(max_length=20)
+    status = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "infrastructure"
+        db_table = "members"

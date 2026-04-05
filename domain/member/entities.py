@@ -1,7 +1,7 @@
 # domain/member/entities.py
 from dataclasses import dataclass, field
 from uuid import uuid4, UUID
-from datetime import datetime
+from datetime import datetime, UTC
 
 from .value_objects import MemberRole
 from .status import MemberStatus, MemberStateMachine
@@ -26,9 +26,11 @@ class Member:
         PENDING → ACTIVE → SUSPENDED → EXITED
     """
     id: UUID = field(default_factory=uuid4)
+    name: str = ""
+    email: str = ""
     role: MemberRole = MemberRole.CONSUMER
     status: MemberStatus = MemberStatus.PENDING
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def activate(self):
         sm = MemberStateMachine(self.status)
