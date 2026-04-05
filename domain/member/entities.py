@@ -14,6 +14,17 @@ class RegisterMemberInput:
 
 @dataclass
 class Member:
+    """
+    Aggregate root representing a member of the energy community.
+
+    A member can:
+    - have a role (consumer, producer, prosumer)
+    - transition between lifecycle states
+    - own energy assets (future extension)
+
+    Lifecycle:
+        PENDING → ACTIVE → SUSPENDED → EXITED
+    """
     id: UUID = field(default_factory=uuid4)
     role: MemberRole = MemberRole.CONSUMER
     status: MemberStatus = MemberStatus.PENDING

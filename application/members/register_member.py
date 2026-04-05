@@ -5,8 +5,10 @@ from domain.member.value_objects import MemberRole
 
 class RegisterMember:
     """
-    Use case for registering a new member. It creates a member with the provided role and saves it to the repository.
-    The member is created with a default status of PENDING. The use case also validates the input role to ensure it's a valid MemberRole before creating the member.
+    Use case for registering a new member in the system.
+    This use case handles the creation of a new member with a specified role,
+    and sets the initial status to PENDING. It validates the input role and ensures that only valid roles are accepted. 
+    The new member is then saved to the repository, and the member's ID is returned.
     """
 
     def __init__(self, member_repository):
