@@ -1,9 +1,9 @@
 # application/members/register_member.py
-from domain.member.entities import Member, RegisterMemberInput
+from domain.member.entities import Member, RegisterMemberUseCaseInput
 from domain.member.value_objects import MemberRole
 
 
-class RegisterMember:
+class RegisterMemberUseCase:
     """
     Use case for registering a new member in the system.
     This use case handles the creation of a new member with a specified role,
@@ -14,7 +14,7 @@ class RegisterMember:
     def __init__(self, member_repository):
         self.member_repository = member_repository
 
-    def execute(self, input_dto: RegisterMemberInput) -> str:
+    def execute(self, input_dto: RegisterMemberUseCaseInput) -> str:
         if not isinstance(input_dto.role, MemberRole):
             raise ValueError("Invalid role")
 

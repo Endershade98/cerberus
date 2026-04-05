@@ -29,7 +29,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 # Application definition
@@ -44,6 +44,10 @@ INSTALLED_APPS = [
     
     # My apps
     'infrastructure',
+
+    # Third party apps
+    'rest_framework',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -146,3 +150,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# DJANGO REST FRAMEWORK CONFIG
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# SPECTACULAR CONFIG
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Cerberus API",
+    "DESCRIPTION": "API per gestione membri, energia e incentivi",
+    "VERSION": "1.0.0",
+}
+
+APPEND_SLASH = True

@@ -1,8 +1,8 @@
 # application/members/activate_member.py
-from domain.member.entities import Member, RegisterMemberInput
+from domain.member.entities import Member, RegisterMemberUseCaseInput
 from domain.member.value_objects import MemberRole
 
-class ActivateMember:
+class ActivateMemberUseCase:
     """
     Use case for activating a member.
     This use case checks if the member is in a pending state and, if so, activates the member and updates their role based on the input data. 
@@ -11,11 +11,11 @@ class ActivateMember:
     def __init__(self, member: Member):
         self.member = member
 
-    def execute(self, input_data: RegisterMemberInput):
+    def execute(self, input_data: RegisterMemberUseCaseInput):
         """
         Activate the member if they are in a pending state and update their role.
         Args:            
-            input_data (RegisterMemberInput): The input data containing the new role for the member.
+            input_data (RegisterMemberUseCaseInput): The input data containing the new role for the member.
         Returns:
             None
         Raises:
