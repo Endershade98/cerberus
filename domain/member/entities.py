@@ -9,6 +9,7 @@ from .status import MemberStatus, MemberStateMachine
 
 @dataclass
 class RegisterMemberInput:
+    """ Input data for registering a new member. """
     role: MemberRole
 
 @dataclass

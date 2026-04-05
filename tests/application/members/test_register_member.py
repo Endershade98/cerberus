@@ -3,6 +3,7 @@ import pytest
 from uuid import UUID
 
 from application.members.register_member import RegisterMember
+from domain.member.entities import RegisterMemberInput
 from domain.member.value_objects import MemberRole
 from domain.member.status import MemberStatus
 
@@ -24,7 +25,7 @@ def test_register_member_creates_member_with_pending_status():
     use_case = RegisterMember(repo)
 
     # Act
-    member_id = use_case.execute(role=MemberRole.CONSUMER)
+    member_id = use_case.execute(RegisterMemberInput(role=MemberRole.CONSUMER))
 
     # Assert
     assert isinstance(member_id, UUID)
@@ -33,3 +34,10 @@ def test_register_member_creates_member_with_pending_status():
     saved_member = repo.saved[0]
     assert saved_member.status == MemberStatus.PENDING
     assert saved_member.role == MemberRole.CONSUMER
+
+def test_register_member_with_invalid_role_raises_error():
+    repo = FakeMemberRepository()
+    use_case = RegisterMember(repo)
+
+    with pytest.raises(ValueError):
+        use_case.execute(RegisterMemberInput(role="invalid_role"))
