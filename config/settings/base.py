@@ -163,4 +163,9 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
 }
 
+# Altre impostazioni personalizzate
 APPEND_SLASH = True
+
+# Livello log: DEBUG in dev, INFO in prod
+LOG_LEVEL = "DEBUG"  # cambiare in INFO o WARNING in produzione
+LOG_FILE = "cerberus.log"
