@@ -1,4 +1,5 @@
 # interfaces/api/members/serializers.py
+
 from rest_framework import serializers
 from domain.member.value_objects import MemberRole
 

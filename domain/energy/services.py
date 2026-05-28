@@ -1,4 +1,5 @@
 # domain/energy/services.py
+
 from domain.energy.entities import EnergyRecord
 from domain.energy.status import EnergyStatus
 from decimal import Decimal

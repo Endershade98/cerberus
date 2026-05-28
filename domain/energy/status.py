@@ -1,5 +1,6 @@
-from enum import Enum
+# domain/energy/status.py
 
+from enum import Enum
 
 class EnergyStatus(str, Enum):
     RECEIVED = "ENG-REC-RCV"

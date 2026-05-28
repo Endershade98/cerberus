@@ -1,4 +1,5 @@
 # application/energy/calculate_shared.py
+
 from domain.energy.services import EnergyProcessor
 
 class CalculateSharedEnergyUseCase:

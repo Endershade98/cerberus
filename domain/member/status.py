@@ -1,4 +1,5 @@
 # domain/member/status.py
+
 from enum import Enum
 
 

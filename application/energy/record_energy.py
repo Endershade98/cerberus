@@ -1,4 +1,5 @@
 # application/energy/record_energy.py
+
 from datetime import datetime
 from domain.energy.entities import EnergyRecord
 from domain.energy.services import EnergyProcessor

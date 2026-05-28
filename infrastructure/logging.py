@@ -1,4 +1,5 @@
 # infrastructure/logging.py
+
 import logging
 from logging.handlers import RotatingFileHandler
 import sys

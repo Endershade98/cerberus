@@ -1,4 +1,5 @@
 # domain/member/entities.py
+
 from dataclasses import dataclass, field
 from uuid import uuid4, UUID
 from datetime import datetime, UTC

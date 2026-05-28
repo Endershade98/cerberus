@@ -1,4 +1,5 @@
 # application/members/activate_member.py
+
 from domain.member.entities import Member, RegisterMemberUseCaseInput
 from domain.member.value_objects import MemberRole
 

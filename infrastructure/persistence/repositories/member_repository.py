@@ -1,4 +1,5 @@
 # infrastructure/persistence/repositories/member_repository.py
+
 from domain.member.entities import Member
 from domain.member.value_objects import MemberRole
 from infrastructure.persistence.django_models.member_model import MemberModel

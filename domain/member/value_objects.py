@@ -1,4 +1,5 @@
 # domain/member/value_objects.py
+
 from enum import Enum
 
 class MemberRole(str, Enum):

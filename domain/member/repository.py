@@ -1,4 +1,5 @@
 # domain/member/repository.py
+
 from abc import ABC, abstractmethod
 from domain.member.entities import Member
 

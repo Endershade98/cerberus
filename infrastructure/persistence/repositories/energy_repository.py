@@ -1,4 +1,5 @@
 # infrastructure/persistence/repositories/energy_repository.py
+
 from infrastructure.persistence.models.energy import EnergyModel
 from domain.energy.entities import EnergyRecord
 from datetime import datetime
