@@ -2,6 +2,8 @@
 
 from abc import ABC, abstractmethod
 from domain.member.entities import Member
+from uuid import UUID
+
 
 class MemberRepository(ABC):
 
@@ -10,5 +12,5 @@ class MemberRepository(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(self, member_id: str) -> Member | None:
+    def get_by_id(self, member_id: UUID) -> Member | None:
         pass

@@ -1,6 +1,7 @@
 # domain/energy/status.py
 
 from enum import Enum
+from domain.shared.exceptions import InvalidStateTransition
 
 class EnergyStatus(str, Enum):
     RECEIVED = "ENG-REC-RCV"
@@ -34,8 +35,6 @@ class EnergyStateMachine:
         allowed = ALLOWED_TRANSITIONS.get(self.status, [])
 
         if new_status not in allowed:
-            raise Exception(
-                f"Invalid transition {self.status} → {new_status}"
-            )
+            raise InvalidStateTransition
 
         self.status = new_status
