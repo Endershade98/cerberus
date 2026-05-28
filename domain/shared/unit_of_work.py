@@ -4,14 +4,11 @@ from abc import ABC, abstractmethod
 
 
 class UnitOfWork(ABC):
-    """
-    Defines transaction boundary abstraction.
-    """
 
     @abstractmethod
     def commit(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def rollback(self):
-        pass
+        raise NotImplementedError

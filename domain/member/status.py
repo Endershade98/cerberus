@@ -5,7 +5,9 @@ from domain.shared.exceptions import InvalidStateTransition
 
 
 class MemberStatus(str, Enum):
+    REGISTERED = "MEM-REG"
     PENDING = "MEM-PENDING"
+    VALIDATED = "MEM-VALID"
     ACTIVE = "MEM-ACTIVE"
     SUSPENDED = "MEM-SUSP"
     REJECTED = "MEM-REJ"
@@ -13,23 +15,50 @@ class MemberStatus(str, Enum):
 
 
 ALLOWED_TRANSITIONS = {
-    MemberStatus.PENDING: [MemberStatus.ACTIVE, MemberStatus.REJECTED],
-    MemberStatus.ACTIVE: [MemberStatus.SUSPENDED, MemberStatus.EXITED],
-    MemberStatus.SUSPENDED: [MemberStatus.ACTIVE, MemberStatus.EXITED],
+    MemberStatus.REGISTERED: {
+        MemberStatus.PENDING,
+    },
+
+    MemberStatus.PENDING: {
+        MemberStatus.VALIDATED,
+        MemberStatus.REJECTED,
+    },
+
+    MemberStatus.VALIDATED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.REJECTED,
+    },
+
+    MemberStatus.ACTIVE: {
+        MemberStatus.SUSPENDED,
+        MemberStatus.EXITED,
+    },
+
+    MemberStatus.SUSPENDED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.EXITED,
+    },
 }
 
 
 class MemberStateMachine:
-    def __init__(self, status: MemberStatus):
-        self.status = status
 
-    def transition(self, new_status: MemberStatus):
+    def __init__(self, current_status: MemberStatus):
+        self.current_status = current_status
 
-        allowed = ALLOWED_TRANSITIONS.get(self.status, [])
+    def can_transition(self, target_status: MemberStatus) -> bool:
+        return (
+            target_status
+            in ALLOWED_TRANSITIONS.get(self.current_status, set())
+        )
 
-        if new_status not in allowed:
+    def transition(self, target_status: MemberStatus) -> MemberStatus:
+
+        if not self.can_transition(target_status):
             raise InvalidStateTransition(
-                f"{self.status} → {new_status} not allowed"
+                f"{self.current_status} → {target_status} not allowed"
             )
 
-        self.status = new_status
+        self.current_status = target_status
+
+        return self.current_status

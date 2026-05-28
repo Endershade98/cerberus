@@ -1,16 +1,21 @@
 # domain/member/repository.py
 
 from abc import ABC, abstractmethod
+
 from domain.member.entities import Member
-from uuid import UUID
+from domain.member.value_objects import MemberId
 
 
 class MemberRepository(ABC):
 
     @abstractmethod
-    def add(self, member: Member) -> None:
-        pass
+    def save(self, member: Member) -> None:
+        raise NotImplementedError
 
     @abstractmethod
-    def get_by_id(self, member_id: UUID) -> Member | None:
-        pass
+    def get(self, member_id: MemberId) -> Member:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_by_email(self, email: str) -> Member | None:
+        raise NotImplementedError

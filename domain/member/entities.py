@@ -1,46 +1,150 @@
 # domain/member/entities.py
 
 from dataclasses import dataclass, field
-from uuid import UUID, uuid4
 from datetime import datetime, UTC
 
-from domain.member.value_objects import MemberRole
-from domain.member.status import MemberStatus, MemberStateMachine
 from domain.shared.aggregate_root import AggregateRoot
 from domain.shared.exceptions import BusinessRuleViolation
+
+from domain.member.status import (
+    MemberStatus,
+    MemberStateMachine,
+)
+
+from domain.member.value_objects import (
+    MemberRole,
+    MemberId,
+    TaxInformation,
+    Address,
+)
+
+from domain.member.events import (
+    MemberRegistered,
+    MemberValidated,
+    MemberActivated,
+    MemberSuspended,
+    MemberRejected,
+    MemberExited,
+)
+
+from domain.member.policies import (
+    ActivationPolicy,
+    SuspensionPolicy,
+)
 
 
 @dataclass
 class Member(AggregateRoot):
 
+    id: MemberId = field(default_factory=MemberId.generate)
+
     name: str = ""
     email: str = ""
+
     role: MemberRole = MemberRole.CONSUMER
-    status: MemberStatus = MemberStatus.PENDING
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    status: MemberStatus = MemberStatus.REGISTERED
+
+    tax_info: TaxInformation | None = None
+    address: Address | None = None
+
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(UTC)
+    )
+
+    @staticmethod
+    def register(
+        name: str,
+        email: str,
+        tax_info: TaxInformation,
+        address: Address,
+    ):
+
+        member = Member(
+            name=name,
+            email=email,
+            tax_info=tax_info,
+            address=address,
+            status=MemberStatus.PENDING,
+        )
+
+        member.add_event(
+            MemberRegistered(member_id=member.id)
+        )
+
+        return member
+
+    def validate(self):
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.VALIDATED)
+        )
+
+        self.add_event(
+            MemberValidated(member_id=self.id)
+        )
 
     def activate(self):
-        sm = MemberStateMachine(self.status)
-        sm.transition(MemberStatus.ACTIVE)
-        self.status = sm.status
+
+        ActivationPolicy.validate(self)
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.ACTIVE)
+        )
+
+        self.add_event(
+            MemberActivated(member_id=self.id)
+        )
 
     def suspend(self):
-        sm = MemberStateMachine(self.status)
-        sm.transition(MemberStatus.SUSPENDED)
-        self.status = sm.status
+
+        SuspensionPolicy.validate(self)
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.SUSPENDED)
+        )
+
+        self.add_event(
+            MemberSuspended(member_id=self.id)
+        )
 
     def reject(self):
-        sm = MemberStateMachine(self.status)
-        sm.transition(MemberStatus.REJECTED)
-        self.status = sm.status
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.REJECTED)
+        )
+
+        self.add_event(
+            MemberRejected(member_id=self.id)
+        )
 
     def exit(self):
-        sm = MemberStateMachine(self.status)
-        sm.transition(MemberStatus.EXITED)
-        self.status = sm.status
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.EXITED)
+        )
+
+        self.add_event(
+            MemberExited(member_id=self.id)
+        )
+
+    def reactivate(self):
+
+        self.status = (
+            MemberStateMachine(self.status)
+            .transition(MemberStatus.ACTIVE)
+        )
 
     def change_role(self, new_role: MemberRole):
+
         if self.status != MemberStatus.ACTIVE:
-            raise BusinessRuleViolation("Only active members can change role")
+            raise BusinessRuleViolation(
+                "Only ACTIVE members can change role"
+            )
 
         self.role = new_role

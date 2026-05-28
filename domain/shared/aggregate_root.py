@@ -1,24 +1,14 @@
 # domain/shared/aggregate_root.py
 
 from dataclasses import dataclass, field
-from typing import List, Any
+from typing import List
 from uuid import UUID, uuid4
 
-
-class DomainEvent:
-    """Base class for all domain events."""
-    pass
+from domain.shared.domain_event import DomainEvent
 
 
 @dataclass
 class AggregateRoot:
-    """
-    Base class for all Aggregate Roots.
-
-    Responsibilities:
-    - Identity
-    - Domain events tracking
-    """
 
     id: UUID = field(default_factory=uuid4, init=False)
     _events: List[DomainEvent] = field(default_factory=list, init=False, repr=False)
