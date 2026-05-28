@@ -1,32 +1,18 @@
 # domain/member/entities.py
 
 from dataclasses import dataclass, field
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 from datetime import datetime, UTC
 
-from .value_objects import MemberRole
-from .status import MemberStatus, MemberStateMachine
+from domain.member.value_objects import MemberRole
+from domain.member.status import MemberStatus, MemberStateMachine
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import BusinessRuleViolation
 
 
 @dataclass
-class RegisterMemberUseCaseInput:
-    """ Input data for registering a new member. """
-    role: MemberRole
+class Member(AggregateRoot):
 
-@dataclass
-class Member:
-    """
-    Aggregate root representing a member of the energy community.
-
-    A member can:
-    - have a role (consumer, producer, prosumer)
-    - transition between lifecycle states
-    - own energy assets (future extension)
-
-    Lifecycle:
-        PENDING → ACTIVE → SUSPENDED → EXITED
-    """
-    id: UUID = field(default_factory=uuid4)
     name: str = ""
     email: str = ""
     role: MemberRole = MemberRole.CONSUMER
@@ -55,6 +41,6 @@ class Member:
 
     def change_role(self, new_role: MemberRole):
         if self.status != MemberStatus.ACTIVE:
-            raise ValueError("Only active members can change role")
+            raise BusinessRuleViolation("Only active members can change role")
 
         self.role = new_role

@@ -1,14 +1,17 @@
 # domain/energy/services.py
 
 from domain.energy.entities import EnergyRecord
-from domain.energy.status import EnergyStatus
-from decimal import Decimal
+from domain.shared.value_objects import EnergyQuantity
+from functools import reduce
 
-class EnergyProcessor:
+
+
+class EnergyDomainService:
+
     @staticmethod
-    def calculate_total(records: list[EnergyRecord]) -> Decimal:
-        return sum(r.value_kwh for r in records)
-    
-    @staticmethod
-    def mark_processed(record: EnergyRecord) -> dict:
-        return {"member_id": record.member_id, "status": EnergyStatus.PROCESSED}
+    def calculate_total(records):
+        return reduce(
+            lambda acc, r: acc + EnergyQuantity(r.value_kwh),
+            records,
+            EnergyQuantity(0)
+        )
