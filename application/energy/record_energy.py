@@ -1,23 +1,22 @@
 # application/energy/record_energy.py
 
-from datetime import datetime
 from domain.energy.entities import EnergyRecord
-from domain.shared.value_objects import EnergyQuantity
-from domain.member.value_objects import MemberId
 
 
-class RecordEnergyUseCase:
+class RecordEnergy:
 
-    def __init__(self, repository):
-        self.repository = repository
+    def __init__(self, uow):
+        self.uow = uow
 
-    def execute(self, member_id: int, kwh: float):
+    def execute(self, member_id: str, kwh: float):
 
-        record = EnergyRecord(
-            member_id=MemberId(member_id),
-            timestamp=datetime.now(),
-            quantity=EnergyQuantity(kwh),
+        record = EnergyRecord.create(
+            member_id=member_id,
+            kwh=kwh
         )
 
-        self.repository.save(record)
+        with self.uow:
+            self.uow.energy_repository.add(record)
+            self.uow.commit()
+
         return record

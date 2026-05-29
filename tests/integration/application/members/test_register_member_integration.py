@@ -2,9 +2,10 @@
 
 from application.members.register_member import RegisterMember
 from application.members.dtos import RegisterMemberUseCaseInput
-from infrastructure.persistence.repositories.member_repository import MemberRepository
-from infrastructure.persistence.unit_of_work import DjangoUnitOfWork
+
+from domain.member.repository import MemberRepository
 from domain.member.value_objects import MemberRole, TaxInformation, Address
+from infrastructure.persistence.django.unit_of_work import DjangoUnitOfWork
 
 
 def test_register_member_integration(db):

@@ -18,23 +18,14 @@ class MoneyAmount:
     def __add__(self, other: "MoneyAmount") -> "MoneyAmount":
         return MoneyAmount(self.value + other.value)
 
-
 @dataclass(frozen=True)
 class EnergyQuantity:
-    value: Decimal
+    amount: float
 
-    def __post_init__(self):
+    def __float__(self):
+        return float(self.amount)
 
-        if self.value < 0:
-            raise ValueError(
-                "Energy quantity cannot be negative"
-            )
-
-    def __add__(
-        self,
-        other: "EnergyQuantity"
-    ) -> "EnergyQuantity":
-
-        return EnergyQuantity(
-            self.value + other.value
-        )
+    def __add__(self, other):
+        if isinstance(other, EnergyQuantity):
+            return EnergyQuantity(self.amount + other.amount)
+        return EnergyQuantity(self.amount + float(other))

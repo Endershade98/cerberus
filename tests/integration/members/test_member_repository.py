@@ -6,7 +6,8 @@ from uuid import uuid4
 from domain.member.entities import Member
 from domain.member.status import MemberStatus
 from domain.member.value_objects import MemberRole
-from infrastructure.persistence.repositories.member_repository import DjangoMemberRepository
+from infrastructure.persistence.django.repositories.member_repository import DjangoMemberRepository
+
 
 
 @pytest.mark.django_db

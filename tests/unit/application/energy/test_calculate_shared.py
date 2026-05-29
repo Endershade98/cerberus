@@ -1,19 +1,31 @@
 # tests/unit/application/energy/test_calculate_shared.py
 
-from unittest.mock import Mock
-from application.energy.calculate_shared import CalculateSharedEnergyUseCase
+from decimal import Decimal
+from datetime import datetime
+
+from domain.energy.entities import EnergyRecord
+from domain.energy.services import EnergyDomainService
+from domain.shared.value_objects import EnergyQuantity
+from domain.member.value_objects import MemberId
 
 
 def test_calculate_shared_energy():
+    # Arrange
+    records = [
+        EnergyRecord(
+            member_id=MemberId.generate(),
+            timestamp=datetime.now(),
+            quantity=EnergyQuantity(Decimal("5")),
+        ),
+        EnergyRecord(
+            member_id=MemberId.generate(),
+            timestamp=datetime.now(),
+            quantity=EnergyQuantity(Decimal("7")),
+        ),
+    ]
 
-    repo = Mock()
-    repo.get_all = Mock(return_value=[
-        Mock(value_kwh=10),
-        Mock(value_kwh=15),
-    ])
+    # Act
+    result = EnergyDomainService.calculate_total(records)
 
-    use_case = CalculateSharedEnergyUseCase(repo)
-
-    result = use_case.execute()
-
-    assert result.value == 25
+    # Assert
+    assert result.value == Decimal("12")
