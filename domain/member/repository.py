@@ -13,9 +13,15 @@ class MemberRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get(self, member_id: MemberId) -> Member:
+    def get(
+        self,
+        member_id: MemberId
+    ) -> Member | None:
         raise NotImplementedError
 
     @abstractmethod
-    def find_by_email(self, email: str) -> Member | None:
+    def find_by_email(
+        self,
+        email: str
+    ) -> Member | None:
         raise NotImplementedError

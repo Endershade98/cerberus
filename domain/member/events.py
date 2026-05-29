@@ -1,16 +1,9 @@
 # domain/member/events.py
 
 from dataclasses import dataclass
-from datetime import datetime
 
-from domain.shared.events import DomainEvent
+from domain.shared.domain_event import DomainEvent
 from domain.member.value_objects import MemberId
-
-
-class DomainEvent:
-    """Base class for all domain events."""
-    def __init__(self):
-        self.occurred_on = datetime.utcnow()
 
 
 @dataclass(frozen=True)

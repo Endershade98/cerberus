@@ -1,7 +1,9 @@
 # domain/shared/event_publisher.py
 
 from abc import ABC, abstractmethod
-from domain.shared.events import DomainEvent
+
+from domain.shared.domain_event import DomainEvent
+
 
 
 class EventPublisher(ABC):

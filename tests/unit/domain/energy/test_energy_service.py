@@ -6,22 +6,39 @@ from datetime import datetime
 from domain.energy.entities import EnergyRecord
 from domain.energy.services import EnergyDomainService
 
+from domain.shared.value_objects import (
+    EnergyQuantity,
+)
+
+from domain.member.value_objects import (
+    MemberId,
+)
+
 
 def test_should_calculate_total_energy():
 
     records = [
+
         EnergyRecord(
-            member_id=1,
+            member_id=MemberId.generate(),
             timestamp=datetime.now(),
-            value_kwh=Decimal("10")
+            quantity=EnergyQuantity(
+                Decimal("10")
+            )
         ),
+
         EnergyRecord(
-            member_id=2,
+            member_id=MemberId.generate(),
             timestamp=datetime.now(),
-            value_kwh=Decimal("15")
+            quantity=EnergyQuantity(
+                Decimal("15")
+            )
         ),
     ]
 
-    total = EnergyDomainService.calculate_total(records)
+    total = (
+        EnergyDomainService
+        .calculate_total(records)
+    )
 
     assert total.value == Decimal("25")

@@ -2,8 +2,7 @@
 
 from infrastructure.persistence.models.energy import EnergyModel
 from domain.energy.entities import EnergyRecord
-from datetime import datetime
-from decimal import Decimal
+
 
 class EnergyRepository:
     def save(self, record: EnergyRecord):

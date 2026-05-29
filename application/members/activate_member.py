@@ -1,32 +1,24 @@
 # application/members/activate_member.py
 
-from uuid import UUID
-
-from domain.member.repository import MemberRepository
-from domain.shared.unit_of_work import UnitOfWork
 from domain.shared.event_publisher import EventPublisher
 
 
 class ActivateMember:
 
-    def __init__(
-        self,
-        repository: MemberRepository,
-        uow: UnitOfWork,
-        publisher: EventPublisher,
-    ):
+    def __init__(self, repository, uow, publisher: EventPublisher):
         self.repository = repository
         self.uow = uow
         self.publisher = publisher
 
-    def execute(self, member_id: UUID):
+    def execute(self, member_id):
 
-        member = self.repository.get_by_id(member_id)
+        member = self.repository.get(member_id)
 
         member.activate()
 
+        self.repository.save(member)
         self.uow.commit()
 
-        self.publisher.publish(
-            member.pull_events()
-        )
+        self.publisher.publish(member.pull_events())
+
+        return member

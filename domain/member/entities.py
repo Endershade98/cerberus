@@ -140,6 +140,10 @@ class Member(AggregateRoot):
             .transition(MemberStatus.ACTIVE)
         )
 
+        self.add_event(
+            MemberActivated(member_id=self.id)
+        )
+
     def change_role(self, new_role: MemberRole):
 
         if self.status != MemberStatus.ACTIVE:

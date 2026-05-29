@@ -1,13 +1,19 @@
 # domain/energy/entities.py
 
-from domain.shared.aggregate_root import AggregateRoot
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.value_objects import EnergyQuantity
+from domain.member.value_objects import MemberId
 
 
 @dataclass
 class EnergyRecord(AggregateRoot):
-    member_id: int
+
+    member_id: MemberId
     timestamp: datetime
-    value_kwh: Decimal
+    quantity: EnergyQuantity
+
+    def energy(self) -> EnergyQuantity:
+        return self.quantity

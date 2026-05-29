@@ -1,16 +1,8 @@
 # application/members/suspend_member.py
 
-from domain.member.repository import MemberRepository
-from domain.shared.unit_of_work import UnitOfWork
-
-
 class SuspendMember:
 
-    def __init__(
-        self,
-        repository: MemberRepository,
-        uow: UnitOfWork,
-    ):
+    def __init__(self, repository, uow):
         self.repository = repository
         self.uow = uow
 
@@ -21,7 +13,6 @@ class SuspendMember:
         member.suspend()
 
         self.repository.save(member)
-
         self.uow.commit()
 
         return member
