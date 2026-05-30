@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from domain.shared.value_objects import EnergyQuantity
+from domain.energy.value_objects import EnergyQuantity
 
 
 def test_should_sum_energy_quantities():

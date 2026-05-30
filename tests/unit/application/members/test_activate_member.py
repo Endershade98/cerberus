@@ -6,8 +6,13 @@ from application.members.activate_member import ActivateMember
 
 def test_activate_member_success():
 
-    repo = Mock()
     uow = Mock()
+    repo = Mock()
+    uow.member_repository = repo
+
+    uow.__enter__ = lambda self: uow
+    uow.__exit__ = lambda *args: None
+
     publisher = Mock()
 
     member = Mock()
@@ -16,7 +21,7 @@ def test_activate_member_success():
 
     repo.get = Mock(return_value=member)
 
-    use_case = ActivateMember(repo, uow, publisher)
+    use_case = ActivateMember(uow, publisher)
 
     use_case.execute("123")
 

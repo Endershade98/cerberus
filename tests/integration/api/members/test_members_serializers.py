@@ -1,6 +1,5 @@
 # tests/integration/api/members/test_members_serializers.py
 
-import pytest
 from interfaces.api.members.serializers import (
     RegisterMemberSerializer,
     ActivateMemberSerializer

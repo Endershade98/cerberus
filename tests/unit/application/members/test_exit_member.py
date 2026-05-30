@@ -6,15 +6,19 @@ from application.members.exit_member import ExitMember
 
 def test_exit_member_success():
 
-    repo = Mock()
     uow = Mock()
+    repo = Mock()
+    uow.member_repository = repo
+
+    uow.__enter__ = lambda self: uow
+    uow.__exit__ = lambda *args: None
 
     member = Mock()
     member.exit = Mock()
 
     repo.get = Mock(return_value=member)
 
-    use_case = ExitMember(repo, uow)
+    use_case = ExitMember(uow)
 
     result = use_case.execute("123")
 

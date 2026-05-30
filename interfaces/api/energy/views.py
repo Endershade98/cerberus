@@ -5,45 +5,31 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from application.bootstrap import ApplicationFactory
-from domain.energy.entities import EnergyRecord
-from domain.energy.services import EnergyService
+from interfaces.api.energy.serializers import EnergyRecordSerializer
 
 
 class EnergyRecordView(APIView):
 
     def post(self, request):
-        data = request.data
+        serializer = EnergyRecordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        # VALIDATION SAFE (fix KeyError + ValueError)
-        try:
-            member_id = data.get("member_id")
-            kwh = float(data.get("kwh"))
-        except (TypeError, ValueError):
-            return Response(
-                {"error": "Invalid input"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if member_id is None:
-            return Response(
-                {"error": "member_id required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        data = serializer.validated_data
 
         use_case = ApplicationFactory.record_energy()
 
         record = use_case.execute(
-            member_id=member_id,
-            kwh=kwh,
+            member_id=str(data["member_id"]),
+            kwh=data["kwh"],
         )
 
         return Response(
             {
                 "id": str(record.id),
                 "member_id": str(record.member_id),
-                "value_kwh": float(record.value_kwh.amount)
-                if hasattr(record.value_kwh, "amount")
-                else float(record.value_kwh),
+                "kwh": float(record.quantity.value)
+                if hasattr(record.quantity, "value")
+                else float(record.quantity),
             },
             status=status.HTTP_201_CREATED,
         )
@@ -56,8 +42,10 @@ class EnergyCalculateView(APIView):
 
         total = use_case.execute()
 
-        # FIX: EnergyQuantity -> float conversion
-        if hasattr(total, "amount"):
+        # FIX: supporto robusto per Value Object
+        if hasattr(total, "value"):
+            total_value = float(total.value)
+        elif hasattr(total, "amount"):
             total_value = float(total.amount)
         else:
             total_value = float(total)

@@ -1,22 +1,26 @@
 # domain/energy/entities.py
 
 from dataclasses import dataclass
-from uuid import UUID, uuid4
+from datetime import datetime
+from uuid import uuid4
 
-from domain.shared.value_objects import EnergyQuantity
-
+from domain.energy.value_objects import EnergyQuantity
 
 
 @dataclass
 class EnergyRecord:
-    id: UUID
-    member_id: UUID
-    value_kwh: EnergyQuantity
+
+    id: str
+    member_id: str
+    quantity: EnergyQuantity
+    recorded_at: datetime
 
     @staticmethod
-    def create(member_id: UUID, kwh: float):
+    def create(member_id: str, kwh: float) -> "EnergyRecord":
+
         return EnergyRecord(
-            id=uuid4(),
+            id=str(uuid4()),
             member_id=member_id,
-            value_kwh=EnergyQuantity(kwh),
+            quantity=EnergyQuantity(kwh),
+            recorded_at=datetime.utcnow(),
         )

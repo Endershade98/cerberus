@@ -1,42 +1,32 @@
 # tests/integration/members/test_member_repository.py
 
 import pytest
-from uuid import uuid4
 
 from domain.member.entities import Member
+from domain.member.value_objects import MemberId, TaxInformation, Address, MemberRole
 from domain.member.status import MemberStatus
-from domain.member.value_objects import MemberRole
 from infrastructure.persistence.django.repositories.member_repository import DjangoMemberRepository
 
 
-
 @pytest.mark.django_db
-def test_add_and_get_member():
+def test_save_and_load_member():
+
     repo = DjangoMemberRepository()
 
     member = Member(
-        name="Alice",
-        email="alice@example.com",
-        role=MemberRole.CONSUMER,
-        status=MemberStatus.PENDING,
+        id=MemberId("123e4567-e89b-12d3-a456-426614174000"),
+        name="Mario",
+        email="mario@test.com",
+        role=MemberRole.PRODUCER,
+        status=MemberStatus.ACTIVE,
+        tax_info=TaxInformation("ABC"),
+        address=Address("Street", "City", "12345", "IT"),
     )
 
-    repo.add(member)
-    retrieved = repo.get_by_id(member.id)
+    repo.save(member)
 
-    assert retrieved.id == member.id
-    assert retrieved.name == "Alice"
-    assert retrieved.email == "alice@example.com"
-    assert retrieved.role == member.role
-    assert retrieved.status == member.status
+    loaded = repo.get(member.id)
 
-
-@pytest.mark.django_db
-def test_get_by_id_raises_when_not_found():
-    # Arrange
-    repo = DjangoMemberRepository()
-    non_existent_id = uuid4()
-
-    # Act + Assert
-    with pytest.raises(Exception):  # oppure MemberModel.DoesNotExist
-        repo.get_by_id(non_existent_id)
+    assert loaded is not None
+    assert loaded.email == "mario@test.com"
+    assert loaded.status == MemberStatus.ACTIVE

@@ -1,13 +1,18 @@
 # infrastructure/events/publisher.py
 
 class EventPublisher:
-    """
-    Publishes domain events via dispatcher
-    """
 
-    def __init__(self, dispatcher):
+    def __init__(self, uow, dispatcher=None):
+        self.uow = uow
         self.dispatcher = dispatcher
 
     def publish(self, events):
-        for event in events:
-            self.dispatcher.dispatch(event)
+        if not events:
+            return
+
+        self.uow.collect(events)
+
+        if self.dispatcher:
+            for event in events:
+                # FIX: usare dispatch o publish coerentemente
+                self.dispatcher.dispatch(event)

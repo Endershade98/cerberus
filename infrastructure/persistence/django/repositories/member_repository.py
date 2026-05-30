@@ -28,7 +28,6 @@ class DjangoMemberRepository(MemberRepository):
         )
 
     def get(self, member_id: MemberId) -> Member | None:
-
         try:
             obj = MemberModel.objects.get(member_id=str(member_id.value))
         except MemberModel.DoesNotExist:
@@ -37,18 +36,13 @@ class DjangoMemberRepository(MemberRepository):
         return self._to_domain(obj)
 
     def find_by_email(self, email: str) -> Member | None:
-
         obj = MemberModel.objects.filter(email=email).first()
-        if not obj:
-            return None
-
-        return self._to_domain(obj)
+        return self._to_domain(obj) if obj else None
 
     # -------------------------
-    # mapper centralizzato
+    # DOMAIN MAPPER
     # -------------------------
     def _to_domain(self, obj: MemberModel) -> Member:
-
         return Member(
             id=MemberId(obj.member_id),
             name=obj.name,

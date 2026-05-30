@@ -1,6 +1,7 @@
 # interfaces/api/members/urls.py
 
 from django.urls import path
+
 from interfaces.api.members.views import (
     MemberRegisterView,
     MemberValidateView,

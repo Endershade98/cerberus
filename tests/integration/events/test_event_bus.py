@@ -1,5 +1,12 @@
 # tests/integration/events/test_event_bus.py
 
+from infrastructure.events.dispatcher import EventDispatcher
+
+
+class TestEvent:
+    pass
+
+
 class FakeBus:
     def __init__(self):
         self.events = []
@@ -10,11 +17,12 @@ class FakeBus:
 
 def test_event_dispatch():
 
-    from infrastructure.events.dispatcher import EventDispatcher
-
     bus = FakeBus()
     dispatcher = EventDispatcher(bus)
 
-    dispatcher.dispatch({"type": "TEST"})
+    event = TestEvent()
+
+    dispatcher.dispatch(event)
 
     assert len(bus.events) == 1
+    assert isinstance(bus.events[0], TestEvent)

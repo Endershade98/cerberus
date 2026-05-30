@@ -53,32 +53,28 @@ class Member(AggregateRoot):
     )
 
     @staticmethod
-    def register(
-        name: str,
-        email: str,
-        tax_info: TaxInformation,
-        address: Address,
-    ):
+    def register(name: str, email: str, tax_info, address):
 
         member = Member(
             name=name,
             email=email,
             tax_info=tax_info,
             address=address,
-            status=MemberStatus.PENDING,
+            status=MemberStatus.REGISTERED,
         )
 
+        member.status = MemberStatus.PENDING
+
         member.add_event(
-            MemberRegistered(member_id=member.id)
+            MemberRegistered(member_id=member.id, email=email)
         )
 
         return member
 
     def validate(self):
 
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.VALIDATED)
+        self.status = MemberStateMachine(self.status).transition(
+            MemberStatus.VALIDATED
         )
 
         self.add_event(
@@ -89,9 +85,8 @@ class Member(AggregateRoot):
 
         ActivationPolicy.validate(self)
 
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.ACTIVE)
+        self.status = MemberStateMachine(self.status).transition(
+            MemberStatus.ACTIVE
         )
 
         self.add_event(
@@ -102,9 +97,8 @@ class Member(AggregateRoot):
 
         SuspensionPolicy.validate(self)
 
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.SUSPENDED)
+        self.status = MemberStateMachine(self.status).transition(
+            MemberStatus.SUSPENDED
         )
 
         self.add_event(
@@ -146,9 +140,8 @@ class Member(AggregateRoot):
 
     def change_role(self, new_role: MemberRole):
 
-        if self.status != MemberStatus.ACTIVE:
-            raise BusinessRuleViolation(
-                "Only ACTIVE members can change role"
-            )
+        from domain.member.rules import MemberRules
+
+        MemberRules.assert_can_change_role(self.status)
 
         self.role = new_role

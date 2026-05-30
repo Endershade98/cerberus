@@ -6,15 +6,19 @@ from application.members.reject_member import RejectMember
 
 def test_reject_member_success():
 
-    repo = Mock()
     uow = Mock()
+    repo = Mock()
+    uow.member_repository = repo
+
+    uow.__enter__ = lambda self: uow
+    uow.__exit__ = lambda *args: None
 
     member = Mock()
     member.reject = Mock()
 
     repo.get = Mock(return_value=member)
 
-    use_case = RejectMember(repo, uow)
+    use_case = RejectMember(uow)
 
     result = use_case.execute("123")
 

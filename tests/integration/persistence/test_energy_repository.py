@@ -2,7 +2,7 @@
 
 import pytest
 from domain.energy.entities import EnergyRecord
-from domain.shared.value_objects import EnergyQuantity
+from domain.energy.value_objects import EnergyQuantity
 from infrastructure.persistence.django.repositories.energy_repository import DjangoEnergyRepository
 
 

@@ -10,3 +10,7 @@ class EventDispatcher:
 
     def dispatch(self, event):
         self.bus.publish(event)
+
+    # backward compatibility FIX
+    def publish(self, event):
+        self.bus.publish(event)

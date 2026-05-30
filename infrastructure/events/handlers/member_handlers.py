@@ -2,7 +2,7 @@
 
 class MemberActivatedHandler:
     """
-    Example integration event handler
+    Integration event handler
     """
 
     def handle(self, event):

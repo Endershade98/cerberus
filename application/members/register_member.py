@@ -6,20 +6,21 @@ from application.members.dtos import RegisterMemberUseCaseInput
 
 class RegisterMember:
 
-    def __init__(self, repository, uow):
-        self.repository = repository
+    def __init__(self, uow):
         self.uow = uow
 
     def execute(self, input_dto: RegisterMemberUseCaseInput):
 
-        member = Member.register(
-            name=input_dto.name,
-            email=input_dto.email,
-            tax_info=input_dto.tax_info,
-            address=input_dto.address,
-        )
+        with self.uow:
+            member = Member.register(
+                name=input_dto.name,
+                email=input_dto.email,
+                role=input_dto.role,
+                tax_info=input_dto.tax_info,
+                address=input_dto.address,
+            )
 
-        self.repository.save(member)
-        self.uow.commit()
+            self.uow.member_repository.save(member)
+            self.uow.commit()
 
         return member

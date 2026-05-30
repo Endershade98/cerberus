@@ -1,6 +1,6 @@
 # tests/unit/application/members/test_register_member.py
 
-import pytest
+
 from unittest.mock import Mock
 
 from application.members.register_member import RegisterMember
@@ -10,10 +10,14 @@ from domain.member.value_objects import MemberRole, TaxInformation, Address
 
 def test_register_member_success():
 
-    repo = Mock()
     uow = Mock()
+    repo = Mock()
+    uow.member_repository = repo
 
-    use_case = RegisterMember(repo, uow)
+    uow.__enter__ = lambda self: uow
+    uow.__exit__ = lambda *args: None
+
+    use_case = RegisterMember(uow)
 
     dto = RegisterMemberUseCaseInput(
         name="Mario",
