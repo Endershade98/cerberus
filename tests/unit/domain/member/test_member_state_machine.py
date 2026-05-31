@@ -2,26 +2,19 @@
 
 import pytest
 
-from domain.member.status import (
-    MemberStateMachine,
-    MemberStatus
-)
-
+from domain.member.status import MemberStateMachine, MemberStatus
 from domain.shared.exceptions import InvalidStateTransition
 
 
-def test_should_allow_valid_transition():
+def test_valid_transition():
+    sm = MemberStateMachine(MemberStatus.REGISTERED)
+    sm.transition(MemberStatus.PENDING)
 
-    sm = MemberStateMachine(MemberStatus.PENDING)
-
-    sm.transition(MemberStatus.ACTIVE)
-
-    assert sm.status == MemberStatus.ACTIVE
+    assert sm.current_status == MemberStatus.PENDING
 
 
-def test_should_block_invalid_transition():
-
-    sm = MemberStateMachine(MemberStatus.PENDING)
+def test_invalid_transition():
+    sm = MemberStateMachine(MemberStatus.REGISTERED)
 
     with pytest.raises(InvalidStateTransition):
-        sm.transition(MemberStatus.EXITED)
+        sm.transition(MemberStatus.ACTIVE)

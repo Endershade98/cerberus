@@ -20,8 +20,11 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/members/', include('interfaces.api.members.urls')),  # endpoint API membri
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),  # JSON OpenAPI schema
+
+    path('api/members/', include('interfaces.api.members.urls')),
+    path('api/energy/', include('interfaces.api.energy.urls')),
+
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('docs/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]

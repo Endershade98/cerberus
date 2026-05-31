@@ -1,3 +1,5 @@
+# config/settings/base.py
+
 """
 Django settings for config project.
 
@@ -43,7 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # My apps
-    'infrastructure',
+    'infrastructure.persistence.django.apps.PersistenceConfig',
 
     # Third party apps
     'rest_framework',

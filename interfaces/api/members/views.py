@@ -3,22 +3,72 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import RegisterMemberSerializer, ActivateMemberSerializer
 
-class RegisterMemberUseCaseView(APIView):
-    serializer_class = RegisterMemberSerializer  # <- aggiungi questa riga
+from domain.member.exceptions import MemberDomainError
+from domain.member.value_objects import MemberId
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
+from application.members.register_member import RegisterMember
+from application.members.validate_member import ValidateMember
+from application.members.activate_member import ActivateMember
+
+from interfaces.api.members.serializers import RegisterMemberSerializer
+from interfaces.api.shared.uow_factory import build_uow
+
+
+class MemberRegisterView(APIView):
+
+    def post(self, request):
+
+        serializer = RegisterMemberSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # qui chiami il tuo use case
-        return Response({"message": "Member registered"}, status=status.HTTP_201_CREATED)
 
-class ActivateMemberUseCaseView(APIView):
-    serializer_class = ActivateMemberSerializer  # <- aggiungi questa riga
+        use_case = RegisterMember(uow=build_uow())
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        # qui chiami il tuo use case
-        return Response({"message": "Member activated"}, status=status.HTTP_200_OK)
+        member = use_case.execute(serializer.to_dto())
+
+        return Response(
+            {
+                "id": str(member.id.value),
+                "status": member.status.value,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MemberValidateView(APIView):
+
+    def post(self, request, member_id):
+
+        use_case = ValidateMember(uow=build_uow())
+
+        try:
+            member = use_case.execute(MemberId(member_id))
+        except MemberDomainError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"status": member.status.value},
+            status=status.HTTP_200_OK,
+        )
+
+class MemberActivateView(APIView):
+
+    def post(self, request, member_id):
+
+        use_case = ActivateMember(uow=build_uow())
+
+        try:
+            member = use_case.execute(MemberId(member_id))
+        except MemberDomainError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"status": member.status.value},
+            status=status.HTTP_200_OK,
+        )

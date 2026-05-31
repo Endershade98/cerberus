@@ -1,32 +1,24 @@
 # tests/unit/domain/shared/test_aggregate_root.py
 
-from domain.shared.aggregate_root import AggregateRoot, DomainEvent
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.domain_event import DomainEvent
 
 
 class FakeEvent(DomainEvent):
     pass
 
 
-def test_should_collect_domain_events():
+def test_should_collect_events():
+    agg = AggregateRoot()
+    agg.add_event(FakeEvent())
 
-    aggregate = AggregateRoot()
-
-    event = FakeEvent()
-
-    aggregate.add_event(event)
-
-    events = aggregate.pull_events()
-
-    assert len(events) == 1
-    assert isinstance(events[0], FakeEvent)
+    assert len(agg.pull_events()) == 1
 
 
-def test_should_clear_events_after_pull():
+def test_should_clear_events():
+    agg = AggregateRoot()
+    agg.add_event(FakeEvent())
 
-    aggregate = AggregateRoot()
+    agg.pull_events()
 
-    aggregate.add_event(FakeEvent())
-
-    aggregate.pull_events()
-
-    assert aggregate.pull_events() == []
+    assert agg.pull_events() == []

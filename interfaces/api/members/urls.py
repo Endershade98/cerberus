@@ -1,9 +1,15 @@
 # interfaces/api/members/urls.py
 
 from django.urls import path
-from .views import RegisterMemberUseCaseView, ActivateMemberUseCaseView
+
+from interfaces.api.members.views import (
+    MemberRegisterView,
+    MemberValidateView,
+    MemberActivateView,
+)
 
 urlpatterns = [
-    path('register/', RegisterMemberUseCaseView.as_view(), name='register-member'),
-    path('activate/', ActivateMemberUseCaseView.as_view(), name='activate-member'),
+    path("", MemberRegisterView.as_view()),
+    path("<uuid:member_id>/validate/", MemberValidateView.as_view()),
+    path("<uuid:member_id>/activate/", MemberActivateView.as_view()),
 ]
