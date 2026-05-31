@@ -4,32 +4,32 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from application.bootstrap import ApplicationFactory
+from application.energy.record_energy import RecordEnergyUseCase
+from application.energy.calculate_shared import CalculateSharedEnergyUseCase
+
 from interfaces.api.energy.serializers import EnergyRecordSerializer
+from interfaces.api.shared.uow_factory import build_uow
 
 
 class EnergyRecordView(APIView):
 
     def post(self, request):
+
         serializer = EnergyRecordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-
-        use_case = ApplicationFactory.record_energy()
+        use_case = RecordEnergyUseCase(uow=build_uow())
 
         record = use_case.execute(
-            member_id=str(data["member_id"]),
-            kwh=data["kwh"],
+            member_id=str(serializer.validated_data["member_id"]),
+            kwh=serializer.validated_data["kwh"],
         )
 
         return Response(
             {
                 "id": str(record.id),
                 "member_id": str(record.member_id),
-                "kwh": float(record.quantity.value)
-                if hasattr(record.quantity, "value")
-                else float(record.quantity),
+                "kwh": record.quantity.value,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -38,19 +38,12 @@ class EnergyRecordView(APIView):
 class EnergyCalculateView(APIView):
 
     def get(self, request):
-        use_case = ApplicationFactory.calculate_shared_energy()
+
+        use_case = CalculateSharedEnergyUseCase(uow=build_uow())
 
         total = use_case.execute()
 
-        # FIX: supporto robusto per Value Object
-        if hasattr(total, "value"):
-            total_value = float(total.value)
-        elif hasattr(total, "amount"):
-            total_value = float(total.amount)
-        else:
-            total_value = float(total)
-
         return Response(
-            {"total_kwh": total_value},
+            {"total_kwh": total.value},
             status=status.HTTP_200_OK,
         )

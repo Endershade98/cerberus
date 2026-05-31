@@ -4,27 +4,29 @@ from unittest.mock import Mock
 from application.members.activate_member import ActivateMember
 
 
-def test_activate_member_success():
+def test_activate_member_publishes_events_outside_transaction():
 
     uow = Mock()
     repo = Mock()
-    uow.member_repository = repo
+    publisher = Mock()
 
+    uow.member_repository = repo
     uow.__enter__ = lambda self: uow
     uow.__exit__ = lambda *args: None
 
-    publisher = Mock()
-
     member = Mock()
     member.activate = Mock()
-    member.pull_events = Mock(return_value=[])
+    member.pull_events = Mock(return_value=["event1", "event2"])
 
-    repo.get = Mock(return_value=member)
+    repo.get.return_value = member
 
     use_case = ActivateMember(uow, publisher)
 
-    use_case.execute("123")
+    result = use_case.execute("123")
 
     member.activate.assert_called_once()
-    uow.commit.assert_called_once()
-    publisher.publish.assert_called_once()
+    repo.save.assert_called_once_with(member)
+
+    publisher.publish.assert_called_once_with(["event1", "event2"])
+
+    assert result == member

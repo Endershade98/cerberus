@@ -2,22 +2,11 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
+from typing import Optional
 
 from domain.shared.aggregate_root import AggregateRoot
-from domain.shared.exceptions import BusinessRuleViolation
-
-from domain.member.status import (
-    MemberStatus,
-    MemberStateMachine,
-)
-
-from domain.member.value_objects import (
-    MemberRole,
-    MemberId,
-    TaxInformation,
-    Address,
-)
-
+from domain.member.status import MemberStatus
+from domain.member.value_objects import Address, MemberId, MemberRole, TaxInformation
 from domain.member.events import (
     MemberRegistered,
     MemberValidated,
@@ -26,12 +15,10 @@ from domain.member.events import (
     MemberRejected,
     MemberExited,
 )
+from domain.shared.exceptions import BusinessRuleViolation
+from domain.shared.time_provider import TimeProvider
 
-from domain.member.policies import (
-    ActivationPolicy,
-    SuspensionPolicy,
-)
-
+time_provider = TimeProvider()
 
 @dataclass
 class Member(AggregateRoot):
@@ -42,106 +29,74 @@ class Member(AggregateRoot):
     email: str = ""
 
     role: MemberRole = MemberRole.CONSUMER
-
     status: MemberStatus = MemberStatus.REGISTERED
 
-    tax_info: TaxInformation | None = None
-    address: Address | None = None
+    tax_info: Optional[TaxInformation] = None
+    address: Optional[Address] = None
 
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    created_at: datetime = field(default_factory=lambda: time_provider.now())
 
+    # -----------------------
+    # FACTORY EXPLICITA (ONLY ENTRY POINT)
+    # -----------------------
     @staticmethod
-    def register(name: str, email: str, tax_info, address):
-
+    def create(name, email, role, tax_info, address) -> "Member":
         member = Member(
             name=name,
             email=email,
+            role=role,
             tax_info=tax_info,
             address=address,
-            status=MemberStatus.REGISTERED,
+            status=MemberStatus.PENDING,
         )
 
-        member.status = MemberStatus.PENDING
-
-        member.add_event(
-            MemberRegistered(member_id=member.id, email=email)
-        )
+        member.add_event(MemberRegistered(member.id, email))
 
         return member
 
+    # -----------------------
+    # RULES
+    # -----------------------
+    def _ensure_status(self, allowed: set[MemberStatus]):
+        if self.status not in allowed:
+            raise BusinessRuleViolation(
+                f"Invalid status: {self.status}"
+            )
+
+    # -----------------------
+    # LIFECYCLE
+    # -----------------------
     def validate(self):
-
-        self.status = MemberStateMachine(self.status).transition(
-            MemberStatus.VALIDATED
-        )
-
-        self.add_event(
-            MemberValidated(member_id=self.id)
-        )
+        self.status = MemberStatus.VALIDATED
+        self.add_event(MemberValidated(self.id))
 
     def activate(self):
+        self._ensure_status({MemberStatus.VALIDATED})
 
-        ActivationPolicy.validate(self)
+        if not self.tax_info:
+            raise BusinessRuleViolation("Missing tax info")
 
-        self.status = MemberStateMachine(self.status).transition(
-            MemberStatus.ACTIVE
-        )
+        if not self.address:
+            raise BusinessRuleViolation("Missing address")
 
-        self.add_event(
-            MemberActivated(member_id=self.id)
-        )
+        self.status = MemberStatus.ACTIVE
+        self.add_event(MemberActivated(self.id))
 
     def suspend(self):
-
-        SuspensionPolicy.validate(self)
-
-        self.status = MemberStateMachine(self.status).transition(
-            MemberStatus.SUSPENDED
-        )
-
-        self.add_event(
-            MemberSuspended(member_id=self.id)
-        )
+        self._ensure_status({MemberStatus.ACTIVE})
+        self.status = MemberStatus.SUSPENDED
+        self.add_event(MemberSuspended(self.id))
 
     def reject(self):
-
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.REJECTED)
-        )
-
-        self.add_event(
-            MemberRejected(member_id=self.id)
-        )
+        self.status = MemberStatus.REJECTED
+        self.add_event(MemberRejected(self.id))
 
     def exit(self):
+        self.status = MemberStatus.EXITED
+        self.add_event(MemberExited(self.id))
 
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.EXITED)
-        )
-
-        self.add_event(
-            MemberExited(member_id=self.id)
-        )
-
-    def reactivate(self):
-
-        self.status = (
-            MemberStateMachine(self.status)
-            .transition(MemberStatus.ACTIVE)
-        )
-
-        self.add_event(
-            MemberActivated(member_id=self.id)
-        )
-
-    def change_role(self, new_role: MemberRole):
-
+    def change_role(self, role: MemberRole):
         from domain.member.rules import MemberRules
 
         MemberRules.assert_can_change_role(self.status)
-
-        self.role = new_role
+        self.role = role

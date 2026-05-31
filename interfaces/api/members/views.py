@@ -4,54 +4,27 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from application.bootstrap import ApplicationFactory
-
 from domain.member.exceptions import MemberDomainError
-from domain.member.value_objects import MemberId, TaxInformation, Address
+from domain.member.value_objects import MemberId
+
+from application.members.register_member import RegisterMember
+from application.members.validate_member import ValidateMember
+from application.members.activate_member import ActivateMember
+
+from interfaces.api.members.serializers import RegisterMemberSerializer
+from interfaces.api.shared.uow_factory import build_uow
 
 
 class MemberRegisterView(APIView):
 
     def post(self, request):
-        data = request.data
 
-        required_fields = [
-            "name", "email", "fiscal_code",
-            "street", "city", "postal_code", "country"
-        ]
+        serializer = RegisterMemberSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        missing = [f for f in required_fields if f not in data]
+        use_case = RegisterMember(uow=build_uow())
 
-        if missing:
-            return Response(
-                {"error": "missing fields", "fields": missing},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            use_case = ApplicationFactory.register_member()
-
-            command = {
-                "name": data["name"],
-                "email": data["email"],
-                "tax_info": TaxInformation(
-                    fiscal_code=data["fiscal_code"]
-                ),
-                "address": Address(
-                    street=data["street"],
-                    city=data["city"],
-                    postal_code=data["postal_code"],
-                    country=data["country"],
-                ),
-            }
-
-            member = use_case.execute(command)
-
-        except (ValueError, MemberDomainError) as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        member = use_case.execute(serializer.to_dto())
 
         return Response(
             {
@@ -66,15 +39,14 @@ class MemberValidateView(APIView):
 
     def post(self, request, member_id):
 
-        use_case = ApplicationFactory.validate_member()
+        use_case = ValidateMember(uow=build_uow())
 
         try:
             member = use_case.execute(MemberId(member_id))
-
-        except MemberDomainError:
+        except MemberDomainError as e:
             return Response(
-                {"error": "Member not found"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(
@@ -82,20 +54,18 @@ class MemberValidateView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
 class MemberActivateView(APIView):
 
     def post(self, request, member_id):
 
-        use_case = ApplicationFactory.activate_member()
+        use_case = ActivateMember(uow=build_uow())
 
         try:
             member = use_case.execute(MemberId(member_id))
-
-        except MemberDomainError:
+        except MemberDomainError as e:
             return Response(
-                {"error": "Member not found"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(

@@ -2,41 +2,19 @@
 
 import pytest
 
-from domain.energy.status import (
-    EnergyStateMachine,
-    EnergyStatus,
-)
-
-from domain.shared.exceptions import (
-    InvalidStateTransition,
-)
+from domain.energy.status import EnergyStateMachine, EnergyStatus
+from domain.shared.exceptions import InvalidStateTransition
 
 
-def test_should_allow_valid_transition():
+def test_valid_transition():
+    sm = EnergyStateMachine(EnergyStatus.RECEIVED)
+    sm.transition(EnergyStatus.VALIDATING)
 
-    sm = EnergyStateMachine(
-        EnergyStatus.RECEIVED
-    )
-
-    sm.transition(
-        EnergyStatus.VALIDATING
-    )
-
-    assert (
-        sm.current_status
-        == EnergyStatus.VALIDATING
-    )
+    assert sm.current_status == EnergyStatus.VALIDATING
 
 
-def test_should_raise_for_invalid_transition():
+def test_invalid_transition():
+    sm = EnergyStateMachine(EnergyStatus.RECEIVED)
 
-    sm = EnergyStateMachine(
-        EnergyStatus.RECEIVED
-    )
-
-    with pytest.raises(
-        InvalidStateTransition
-    ):
-        sm.transition(
-            EnergyStatus.COMPLETED
-        )
+    with pytest.raises(InvalidStateTransition):
+        sm.transition(EnergyStatus.COMPLETED)

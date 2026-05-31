@@ -1,18 +1,20 @@
 # application/members/exit_member.py
 
-class ExitMember:
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
 
-    def __init__(self, uow):
-        self.uow = uow
 
-    def execute(self, member_id):
+class ExitMember(UseCase):
 
-        with self.uow:
-            member = self.uow.member_repository.get(member_id)
+    def _execute(self, member_id):
 
-            member.exit()
+        member = self.uow.member_repository.get(member_id)
 
-            self.uow.member_repository.save(member)
-            self.uow.commit()
+        if not member:
+            raise MemberDomainError("Member not found")
+
+        member.exit()
+
+        self.uow.member_repository.save(member)
 
         return member

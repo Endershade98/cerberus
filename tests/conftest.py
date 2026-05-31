@@ -1,38 +1,50 @@
 # tests/conftest.py
 
 import pytest
-from rest_framework.test import APIClient
+
+from infrastructure.django_app.events.bus import EventBus
+from infrastructure.django_app.outbox.repository import OutboxRepository
+from infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
+
+from datetime import datetime, UTC
+
+from domain.shared.event_publisher import EventPublisher
+from domain.shared.time_provider import FrozenTimeProvider
+from domain.shared.id_provider import FixedIdProvider
+
+
+
+
+@pytest.fixture(autouse=True)
+def freeze_time(monkeypatch):
+
+    fixed = datetime(2025, 1, 1, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        "domain.shared.time_provider.TimeProvider",
+        lambda: FrozenTimeProvider(fixed)
+    )
+
+    monkeypatch.setattr(
+        "domain.shared.id_provider.IdProvider",
+        lambda: FixedIdProvider()
+    )
+
+@pytest.fixture
+def event_bus():
+    return EventBus()
 
 
 @pytest.fixture
-def client():
-    return APIClient()
+def outbox_repo():
+    return OutboxRepository()
 
 
 @pytest.fixture
-def valid_member_payload():
-    return {
-        "name": "John Doe",
-        "email": "john@example.com",
-        "fiscal_code": "RSSMRA85T10A562S",  # 16 chars VALID
-        "street": "Via Roma 1",
-        "city": "Napoli",
-        "postal_code": "80100",
-        "country": "IT",
-    }
+def uow(outbox_repo):
+    return DjangoUnitOfWork(outbox_repo)
 
 
 @pytest.fixture
-def invalid_energy_payload():
-    return {
-        "member_id": None,
-        "kwh": "invalid"
-    }
-
-
-@pytest.fixture
-def valid_energy_payload():
-    return {
-        "member_id": "00000000-0000-0000-0000-000000000001",
-        "kwh": 10.5
-    }
+def publisher(uow, event_bus):
+    return EventPublisher(uow, dispatcher=event_bus)

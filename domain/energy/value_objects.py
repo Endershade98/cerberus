@@ -8,8 +8,12 @@ class EnergyQuantity:
     value: float
 
     def __post_init__(self):
-        if self.value <= 0:
-            raise ValueError("Energy quantity must be positive")
+        if self.value < 0:
+            raise ValueError("Energy quantity cannot be negative")
 
     def __add__(self, other: "EnergyQuantity") -> "EnergyQuantity":
         return EnergyQuantity(self.value + other.value)
+
+    @staticmethod
+    def zero() -> "EnergyQuantity":
+        return EnergyQuantity(0.0)

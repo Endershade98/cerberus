@@ -1,0 +1,505 @@
+
+
+===== infrastructure/django_app/events/handlers/member_handlers.py =====
+
+# infrastructure/django_app/events/handlers/member_handlers.py
+
+class MemberActivatedHandler:
+    """
+    Integration event handler
+    """
+
+    def handle(self, event):
+        print(f"[EVENT] Member activated: {event.member_id}")
+
+===== infrastructure/django_app/events/handlers/__init__.py =====
+
+
+
+===== infrastructure/django_app/events/bus.py =====
+
+# infrastructure/django_app/events/bus.py
+
+from collections import defaultdict
+from typing import Callable, Type, Any
+
+
+class EventBus:
+
+    def __init__(self):
+        self._handlers: dict[Type, list[Callable]] = defaultdict(list)
+
+    def register(self, event_type: Type, handler: Callable[[Any], None]):
+        self._handlers[event_type].append(handler)
+
+    def publish(self, event: Any):
+        for handler in self._handlers.get(type(event), []):
+            handler(event)
+
+===== infrastructure/django_app/events/dispatcher.py =====
+
+# infrastructure/django_app/events/dispatcher.py
+
+class EventDispatcher:
+
+    def __init__(self, bus):
+        self.bus = bus
+
+    def dispatch(self, event):
+        self.bus.publish(event)
+
+===== infrastructure/django_app/events/publisher.py =====
+
+# infrastructure/django_app/events/publisher.py
+
+class EventPublisher:
+
+    def __init__(self, uow, dispatcher=None):
+        self.uow = uow
+        self.dispatcher = dispatcher
+
+    def publish(self, events):
+        if not events:
+            return
+
+        self.uow.collect(events)
+
+        if self.dispatcher:
+            for event in events:
+                self.dispatcher.dispatch(event)
+
+===== infrastructure/django_app/events/__init__.py =====
+
+
+
+===== infrastructure/django_app/outbox/repository.py =====
+
+# infrastructure/django_app/outbox/repository.py
+
+from infrastructure.persistence.django.models import OutboxEvent
+
+
+class OutboxRepository:
+
+    def save(self, event):
+        OutboxEvent.objects.create(
+            id=event.id,
+            event_type=type(event).__name__,
+            payload=self._serialize(event),
+            occurred_on=event.occurred_on,
+            processed=False,
+        )
+
+    def get_unprocessed(self):
+        return OutboxEvent.objects.filter(processed=False)
+
+    def mark_processed(self, event_id):
+        OutboxEvent.objects.filter(id=event_id).update(processed=True)
+
+    def _serialize(self, event):
+        if hasattr(event, "to_dict"):
+            return event.to_dict()
+
+        return {
+            k: str(v)
+            for k, v in event.__dict__.items()
+            if not k.startswith("_")
+        }
+
+===== infrastructure/django_app/outbox/dispatcher.py =====
+
+# infrastructure/django_app/outbox/dispatcher.py
+
+from django.db import transaction
+
+
+class OutboxDispatcher:
+
+    def __init__(self, repo, bus):
+        self.repo = repo
+        self.bus = bus
+
+    def dispatch_pending(self):
+        events = list(self.repo.get_unprocessed())
+
+        for outbox_event in events:
+            with transaction.atomic():
+                self.bus.publish(outbox_event.payload)
+                self.repo.mark_processed(outbox_event.id)
+
+===== infrastructure/django_app/outbox/__init__.py =====
+
+
+
+===== infrastructure/django_app/persistence/django/repositories/member_repository.py =====
+
+# infrastructure/django_app/persistence/django/repositories/member_repository.py
+
+from domain.member.entities import Member
+from domain.member.repository import MemberRepository
+from domain.member.value_objects import MemberId, TaxInformation, Address, MemberRole
+from domain.member.status import MemberStatus
+from infrastructure.persistence.django.models import MemberModel
+
+
+class DjangoMemberRepository(MemberRepository):
+
+    def save(self, member: Member) -> None:
+        MemberModel.objects.update_or_create(
+            member_id=member.id.value,
+            defaults={
+                "name": member.name,
+                "email": member.email,
+                "role": member.role.value,
+                "status": member.status.value,
+                "fiscal_code": member.tax_info.fiscal_code if member.tax_info else None,
+                "street": member.address.street if member.address else None,
+                "city": member.address.city if member.address else None,
+                "postal_code": member.address.postal_code if member.address else None,
+                "country": member.address.country if member.address else None,
+                "created_at": member.created_at,
+            },
+        )
+
+    def get(self, member_id: MemberId) -> Member | None:
+        try:
+            obj = MemberModel.objects.get(member_id=member_id.value)
+        except MemberModel.DoesNotExist:
+            return None
+
+        return self._to_domain(obj)
+
+    def find_by_email(self, email: str) -> Member | None:
+        obj = MemberModel.objects.filter(email=email).first()
+        return self._to_domain(obj) if obj else None
+
+    def _to_domain(self, obj: MemberModel) -> Member:
+        return Member(
+            id=MemberId(obj.member_id),
+            name=obj.name,
+            email=obj.email,
+            role=MemberRole(obj.role),
+            status=MemberStatus(obj.status),
+            tax_info=TaxInformation(obj.fiscal_code) if obj.fiscal_code else None,
+            address=Address(
+                street=obj.street,
+                city=obj.city,
+                postal_code=obj.postal_code,
+                country=obj.country,
+            ) if obj.street else None,
+            created_at=obj.created_at,
+        )
+
+===== infrastructure/django_app/persistence/django/repositories/energy_repository.py =====
+
+# infrastructure/django_app/persistence/django/repositories/energy_repository.py
+
+from domain.energy.entities import EnergyRecord
+from domain.energy.value_objects import EnergyQuantity
+from infrastructure.persistence.django.models import EnergyModel
+from domain.energy.repository import EnergyRepository
+
+class DjangoEnergyRepository(EnergyRepository):
+
+    def save(self, record: EnergyRecord) -> None:
+        EnergyModel.objects.create(
+            id=record.id,
+            member_id=record.member_id,
+            recorded_at=record.recorded_at,
+            quantity=record.quantity.value,
+        )
+
+    def get_all(self) -> list[EnergyRecord]:
+        return [
+            EnergyRecord(
+                id=str(row.id),
+                member_id=str(row.member_id),
+                quantity=EnergyQuantity(float(row.quantity)),
+                recorded_at=row.recorded_at,
+            )
+            for row in EnergyModel.objects.all()
+        ]
+
+===== infrastructure/django_app/persistence/django/repositories/unit_of_work.py =====
+
+# infrastructure/django_app/persistence/django/repositories/unit_of_work.py
+
+from django.db import transaction
+
+from infrastructure.django_app.persistence.django.repositories.member_repository import DjangoMemberRepository
+from infrastructure.django_app.persistence.django.repositories.energy_repository import DjangoEnergyRepository
+from infrastructure.django_app.outbox.repository import OutboxRepository
+
+
+class DjangoUnitOfWork:
+
+    def __init__(self, outbox_repo: OutboxRepository):
+        self.outbox_repo = outbox_repo
+
+        self.member_repository = DjangoMemberRepository()
+        self.energy_repository = DjangoEnergyRepository()
+
+        self._events = []
+        self._transaction = None
+
+    def __enter__(self):
+        self._transaction = transaction.atomic()
+        self._transaction.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type:
+            self.rollback()
+            self._transaction.__exit__(exc_type, exc, tb)
+            return False
+
+        self.commit()
+        self._transaction.__exit__(exc_type, exc, tb)
+        return False
+
+    def collect(self, events: list):
+        self._events.extend(events)
+
+    def commit(self):
+        for event in self._events:
+            self.outbox_repo.save(event)
+
+        self._events.clear()
+
+    def rollback(self):
+        self._events.clear()
+
+===== infrastructure/django_app/persistence/django/repositories/__init__.py =====
+
+
+
+===== infrastructure/django_app/persistence/django/mappers/__init__.py =====
+
+
+
+===== infrastructure/django_app/persistence/django/migrations/__init__.py =====
+
+
+
+===== infrastructure/django_app/persistence/django/__init__.py =====
+
+
+
+===== infrastructure/django_app/persistence/__init__.py =====
+
+
+
+===== infrastructure/django_app/__init__.py =====
+
+
+
+===== infrastructure/logging/logger.py =====
+
+# infrastructure/logging/logger.py
+
+import logging
+import sys
+from logging.handlers import RotatingFileHandler
+from django.conf import settings
+
+
+class Logger:
+    _loggers = {}
+
+    @classmethod
+    def get_logger(cls, name: str):
+
+        if name in cls._loggers:
+            return cls._loggers[name]
+
+        logger = logging.getLogger(name)
+
+        if not logger.hasHandlers():
+
+            level = getattr(settings, "LOG_LEVEL", "INFO").upper()
+
+            logger.setLevel(getattr(logging, level, logging.INFO))
+
+            console = logging.StreamHandler(sys.stdout)
+            console.setLevel(getattr(logging, level))
+            console.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+
+            file = RotatingFileHandler(
+                getattr(settings, "LOG_FILE", "cerberus.log"),
+                maxBytes=5 * 1024 * 1024,
+                backupCount=3,
+            )
+            file.setLevel(getattr(logging, level))
+            file.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+
+            logger.addHandler(console)
+            logger.addHandler(file)
+            logger.propagate = False
+
+        cls._loggers[name] = logger
+        return logger
+
+===== infrastructure/logging/__init__.py =====
+
+
+
+===== infrastructure/migrations/__init__.py =====
+
+
+
+===== infrastructure/external/__init__.py =====
+
+
+
+===== infrastructure/__init__.py =====
+
+
+
+===== infrastructure/apps.py =====
+
+# infrastructure/apps.py
+
+from django.apps import AppConfig
+
+
+class InfrastructureConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "infrastructure"
+
+===== infrastructure/persistence/django/models.py =====
+
+# infrastructure/persistence/django/models.py
+
+
+import uuid
+
+from django.db import models
+
+
+class MemberModel(models.Model):
+    member_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+
+    role = models.CharField(max_length=20)
+    status = models.CharField(max_length=20)
+
+    fiscal_code = models.CharField(max_length=50, null=True, blank=True)
+
+    street = models.CharField(max_length=255, null=True, blank=True)
+    city = models.CharField(max_length=100, null=True, blank=True)
+    postal_code = models.CharField(max_length=20, null=True, blank=True)
+    country = models.CharField(max_length=100, null=True, blank=True)
+
+    created_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "members"
+
+
+class EnergyModel(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member_id = models.UUIDField()
+    recorded_at = models.DateTimeField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = "energy_records"
+
+
+class OutboxEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=255)
+    payload = models.JSONField()
+    occurred_on = models.DateTimeField()
+    processed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "outbox_events"
+
+===== infrastructure/persistence/django/__init__.py =====
+
+
+
+===== infrastructure/persistence/django/apps.py =====
+
+# infrastructure/persistence/django/apps.py
+
+from django.apps import AppConfig
+
+
+class PersistenceConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "infrastructure.persistence.django"
+    label = "persistence"
+
+===== infrastructure/persistence/django/migrations/__init__.py =====
+
+
+
+===== infrastructure/persistence/django/migrations/0001_initial.py =====
+
+# Generated by Django 6.0.3 on 2026-05-31 20:07
+
+import uuid
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='EnergyModel',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('member_id', models.UUIDField()),
+                ('recorded_at', models.DateTimeField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+            ],
+            options={
+                'db_table': 'energy_records',
+            },
+        ),
+        migrations.CreateModel(
+            name='MemberModel',
+            fields=[
+                ('member_id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('name', models.CharField(max_length=255)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('role', models.CharField(max_length=20)),
+                ('status', models.CharField(max_length=20)),
+                ('fiscal_code', models.CharField(blank=True, max_length=50, null=True)),
+                ('street', models.CharField(blank=True, max_length=255, null=True)),
+                ('city', models.CharField(blank=True, max_length=100, null=True)),
+                ('postal_code', models.CharField(blank=True, max_length=20, null=True)),
+                ('country', models.CharField(blank=True, max_length=100, null=True)),
+                ('created_at', models.DateTimeField()),
+            ],
+            options={
+                'db_table': 'members',
+            },
+        ),
+        migrations.CreateModel(
+            name='OutboxEvent',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('event_type', models.CharField(max_length=255)),
+                ('payload', models.JSONField()),
+                ('occurred_on', models.DateTimeField()),
+                ('processed', models.BooleanField(default=False)),
+            ],
+            options={
+                'db_table': 'outbox_events',
+            },
+        ),
+    ]
+
+
+===== infrastructure/persistence/__init__.py =====
+

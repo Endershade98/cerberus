@@ -1,18 +1,20 @@
 # application/members/reject_member.py
 
-class RejectMember:
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
 
-    def __init__(self, uow):
-        self.uow = uow
 
-    def execute(self, member_id):
+class RejectMember(UseCase):
 
-        with self.uow:
-            member = self.uow.member_repository.get(member_id)
+    def _execute(self, member_id):
 
-            member.reject()
+        member = self.uow.member_repository.get(member_id)
 
-            self.uow.member_repository.save(member)
-            self.uow.commit()
+        if not member:
+            raise MemberDomainError("Member not found")
+
+        member.reject()
+
+        self.uow.member_repository.save(member)
 
         return member

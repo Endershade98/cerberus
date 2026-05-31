@@ -1,17 +1,13 @@
 # application/energy/calculate_shared.py
 
 from domain.energy.services import EnergyDomainService
+from application.common.use_case import UseCase
 
 
-class CalculateSharedEnergyUseCase:
+class CalculateSharedEnergyUseCase(UseCase):
 
-    def __init__(self, uow):
-        self.uow = uow
+    def _execute(self):
 
-    def execute(self):
+        records = self.uow.energy_repository.get_all()
 
-        with self.uow:
-            records = self.uow.energy_repository.get_all()
-            total = EnergyDomainService.calculate_total(records)
-
-        return total
+        return EnergyDomainService.calculate_total(records)

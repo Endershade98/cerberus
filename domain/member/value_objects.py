@@ -1,8 +1,8 @@
 # domain/member/value_objects.py
 
-from enum import Enum
 from dataclasses import dataclass
 from uuid import UUID, uuid4
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -20,13 +20,18 @@ class TaxInformation:
 
     def __post_init__(self):
 
+        if self.fiscal_code is None:
+            raise ValueError("Fiscal code is required")
+
         normalized = self.fiscal_code.strip().upper()
 
+        # FIX: tolleriamo input sporco nei test + validazione reale separata
         if len(normalized) != 16:
-            raise ValueError("Fiscal code must be 16 chars")
+            raise ValueError(
+                f"Invalid fiscal code length: expected 16, got {len(normalized)}"
+            )
 
         object.__setattr__(self, "fiscal_code", normalized)
-
 
 @dataclass(frozen=True)
 class Address:

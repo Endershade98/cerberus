@@ -1,22 +1,18 @@
 # application/energy/record_energy.py
 
 from domain.energy.entities import EnergyRecord
+from application.common.use_case import UseCase
 
 
-class RecordEnergyUseCase:
+class RecordEnergyUseCase(UseCase):
 
-    def __init__(self, uow):
-        self.uow = uow
+    def _execute(self, member_id: str, kwh: float):
 
-    def execute(self, member_id: str, kwh: float):
+        record = EnergyRecord.create(
+            member_id=member_id,
+            kwh=kwh
+        )
 
-        with self.uow:
-            record = EnergyRecord.create(
-                member_id=member_id,
-                kwh=kwh
-            )
-
-            self.uow.energy_repository.add(record)
-            self.uow.commit()
+        self.uow.energy_repository.save(record)
 
         return record

@@ -1,29 +1,20 @@
 # application/members/activate_member.py
 
 from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
 
 
-class ActivateMember:
+class ActivateMember(UseCase):
 
-    def __init__(self, uow, publisher=None):
-        self.uow = uow
-        self.publisher = publisher
+    def _execute(self, member_id):
 
-    def execute(self, member_id):
+        member = self.uow.member_repository.get(member_id)
 
-        with self.uow:
+        if not member:
+            raise MemberDomainError("Member not found")
 
-            member = self.uow.member_repository.get(member_id)
+        member.activate()
 
-            if not member:
-                raise MemberDomainError("Member not found")
-
-            member.activate()
-
-            self.uow.member_repository.save(member)
-            self.uow.commit()
-
-            if self.publisher:
-                self.publisher.publish(member.pull_events())
+        self.uow.member_repository.save(member)
 
         return member
