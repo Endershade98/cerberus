@@ -15,6 +15,10 @@ class ValidateMember(UseCase):
 
         member.validate()
 
+        events = member.pull_events()
+
         self.uow.member_repository.save(member)
+
+        self.uow.collect(events)
 
         return member

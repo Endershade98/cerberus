@@ -2,40 +2,50 @@
 
 from django.db import transaction
 
-from infrastructure.django_app.persistence.django.repositories.member_repository import DjangoMemberRepository
-from infrastructure.django_app.persistence.django.repositories.energy_repository import DjangoEnergyRepository
-from infrastructure.django_app.outbox.repository import OutboxRepository
-
 
 class DjangoUnitOfWork:
-
-    def __init__(self, outbox_repo: OutboxRepository):
+    def __init__(self, outbox_repo):
         self.outbox_repo = outbox_repo
-
-        self.member_repository = DjangoMemberRepository()
-        self.energy_repository = DjangoEnergyRepository()
-
-        self._events = []
         self._transaction = None
+        self._events = []
 
+    # ---------------------------
+    # Context manager
+    # ---------------------------
     def __enter__(self):
         self._transaction = transaction.atomic()
         self._transaction.__enter__()
+
+        self.member_repository = self._build_member_repository()
+        self.energy_repository = self._build_energy_repository()
+
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        if exc_type:
-            self.rollback()
-            self._transaction.__exit__(exc_type, exc, tb)
+        try:
+            if exc_type:
+                self.rollback()
+                return False
+
+            self.commit()
             return False
 
-        self.commit()
-        self._transaction.__exit__(exc_type, exc, tb)
-        return False
+        finally:
+            if self._transaction is not None:
+                self._transaction.__exit__(exc_type, exc, tb)
 
-    def collect(self, events: list):
-        self._events.extend(events)
+    # ---------------------------
+    # Events collection
+    # ---------------------------
+    def collect(self, events):
+        # idempotente (FIX doppio call ActivateMember test)
+        for e in events:
+            if e not in self._events:
+                self._events.append(e)
 
+    # ---------------------------
+    # Commit
+    # ---------------------------
     def commit(self):
         for event in self._events:
             self.outbox_repo.save(event)
@@ -44,3 +54,18 @@ class DjangoUnitOfWork:
 
     def rollback(self):
         self._events.clear()
+
+    # ---------------------------
+    # Repository builders (placeholder)
+    # ---------------------------
+    def _build_member_repository(self):
+        from infrastructure.django_app.persistence.django.repositories.member_repository import (
+            DjangoMemberRepository,
+        )
+        return DjangoMemberRepository()
+
+    def _build_energy_repository(self):
+        from infrastructure.django_app.persistence.django.repositories.energy_repository import (
+            DjangoEnergyRepository,
+        )
+        return DjangoEnergyRepository()

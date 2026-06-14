@@ -18,6 +18,25 @@ class UnitOfWork(AbstractContextManager, ABC):
         else:
             self.commit()
 
+    # -------------------------
+    # EVENT BUFFER
+    # -------------------------
+    def __init__(self):
+        self._events = []
+
+    def collect(self, events: list):
+        if not events:
+            return
+        self._events.extend(events)
+
+    def pop_events(self):
+        events = list(self._events)
+        self._events.clear()
+        return events
+
+    # -------------------------
+    # ABSTRACT
+    # -------------------------
     @abstractmethod
     def commit(self):
         raise NotImplementedError

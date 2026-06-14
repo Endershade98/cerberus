@@ -1,6 +1,7 @@
 # application/members/register_member.py
 
 from application.common.use_case import UseCase
+from domain.member.entities import Member
 
 
 class RegisterMember(UseCase):
@@ -12,8 +13,6 @@ class RegisterMember(UseCase):
         if member:
             raise ValueError("Member already exists")
 
-        from domain.member.entities import Member
-
         member = Member.create(
             name=input_dto.name,
             email=input_dto.email,
@@ -22,6 +21,11 @@ class RegisterMember(UseCase):
             address=input_dto.address,
         )
 
+        # eventi iniziali
+        events = member.pull_events()
+
         self.uow.member_repository.save(member)
+
+        self.uow.collect(events)
 
         return member

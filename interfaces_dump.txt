@@ -1,0 +1,237 @@
+
+
+===== interfaces/api/members/__init__.py =====
+
+
+
+===== interfaces/api/members/views.py =====
+
+# interfaces/api/members/views.py
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+from domain.member.exceptions import MemberDomainError
+from domain.member.value_objects import MemberId
+
+from application.members.register_member import RegisterMember
+from application.members.validate_member import ValidateMember
+from application.members.activate_member import ActivateMember
+
+from interfaces.api.members.serializers import RegisterMemberSerializer
+from interfaces.api.shared.uow_factory import build_uow
+
+
+class MemberRegisterView(APIView):
+
+    def post(self, request):
+
+        serializer = RegisterMemberSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        use_case = RegisterMember(uow=build_uow())
+
+        member = use_case.execute(serializer.to_dto())
+
+        return Response(
+            {
+                "id": str(member.id.value),
+                "status": member.status.value,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MemberValidateView(APIView):
+
+    def post(self, request, member_id):
+
+        use_case = ValidateMember(uow=build_uow())
+
+        try:
+            member = use_case.execute(MemberId(member_id))
+        except MemberDomainError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"status": member.status.value},
+            status=status.HTTP_200_OK,
+        )
+
+class MemberActivateView(APIView):
+
+    def post(self, request, member_id):
+
+        use_case = ActivateMember(uow=build_uow())
+
+        try:
+            member = use_case.execute(MemberId(member_id))
+        except MemberDomainError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"status": member.status.value},
+            status=status.HTTP_200_OK,
+        )
+
+===== interfaces/api/members/serializers.py =====
+
+# interfaces/api/members/serializers.py
+
+from rest_framework import serializers
+
+from application.members.dtos import RegisterMemberUseCaseInput
+from domain.member.value_objects import MemberRole, TaxInformation, Address
+
+
+class RegisterMemberSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=[r.value for r in MemberRole])
+
+    fiscal_code = serializers.CharField()
+    street = serializers.CharField()
+    city = serializers.CharField()
+    postal_code = serializers.CharField()
+    country = serializers.CharField()
+
+    def to_dto(self) -> RegisterMemberUseCaseInput:
+        return RegisterMemberUseCaseInput(
+            name=self.validated_data["name"],
+            email=self.validated_data["email"],
+            role=MemberRole(self.validated_data["role"]),
+            tax_info=TaxInformation(self.validated_data["fiscal_code"]),
+            address=Address(
+                street=self.validated_data["street"],
+                city=self.validated_data["city"],
+                postal_code=self.validated_data["postal_code"],
+                country=self.validated_data["country"],
+            ),
+        )
+
+===== interfaces/api/members/urls.py =====
+
+# interfaces/api/members/urls.py
+
+from django.urls import path
+
+from interfaces.api.members.views import (
+    MemberRegisterView,
+    MemberValidateView,
+    MemberActivateView,
+)
+
+urlpatterns = [
+    path("", MemberRegisterView.as_view()),
+    path("<uuid:member_id>/validate/", MemberValidateView.as_view()),
+    path("<uuid:member_id>/activate/", MemberActivateView.as_view()),
+]
+
+===== interfaces/api/energy/__init__.py =====
+
+
+
+===== interfaces/api/energy/urls.py =====
+
+# interfaces/api/energy/urls.py
+
+from django.urls import path
+from interfaces.api.energy.views import EnergyCalculateView, EnergyRecordView
+
+
+urlpatterns = [
+    path("record/", EnergyRecordView.as_view()),
+    path("calculate/", EnergyCalculateView.as_view()),
+]
+
+===== interfaces/api/energy/views.py =====
+
+# interfaces/api/energy/views.py
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+from application.energy.record_energy import RecordEnergyUseCase
+from application.energy.calculate_shared import CalculateSharedEnergyUseCase
+
+from interfaces.api.energy.serializers import EnergyRecordSerializer
+from interfaces.api.shared.uow_factory import build_uow
+
+
+class EnergyRecordView(APIView):
+
+    def post(self, request):
+
+        serializer = EnergyRecordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        use_case = RecordEnergyUseCase(uow=build_uow())
+
+        record = use_case.execute(
+            member_id=str(serializer.validated_data["member_id"]),
+            kwh=serializer.validated_data["kwh"],
+        )
+
+        return Response(
+            {
+                "id": str(record.id),
+                "member_id": str(record.member_id),
+                "kwh": record.quantity.value,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class EnergyCalculateView(APIView):
+
+    def get(self, request):
+
+        use_case = CalculateSharedEnergyUseCase(uow=build_uow())
+
+        total = use_case.execute()
+
+        return Response(
+            {"total_kwh": total.value},
+            status=status.HTTP_200_OK,
+        )
+
+===== interfaces/api/energy/serializers.py =====
+
+# interfaces/api/energy/serializers.py
+
+from rest_framework import serializers
+
+
+class EnergyRecordSerializer(serializers.Serializer):
+    member_id = serializers.UUIDField()
+    kwh = serializers.FloatField(min_value=0.0)
+
+===== interfaces/api/incentives/__init__.py =====
+
+
+
+===== interfaces/api/__init__.py =====
+
+
+
+===== interfaces/api/shared/uow_factory.py =====
+
+# interfaces/api/shared/uow_factory.py
+
+from infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
+from infrastructure.django_app.outbox.repository import OutboxRepository
+
+
+def build_uow():
+    return DjangoUnitOfWork(outbox_repo=OutboxRepository())
+
+===== interfaces/__init__.py =====
+

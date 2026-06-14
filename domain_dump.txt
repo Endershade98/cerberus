@@ -1,0 +1,874 @@
+
+
+===== domain/member/__init__.py =====
+
+
+
+===== domain/member/events.py =====
+
+# domain/member/events.py
+
+from dataclasses import dataclass
+from domain.shared.domain_event import DomainEvent
+from domain.member.value_objects import MemberId
+
+
+@dataclass(frozen=True)
+class MemberRegistered(DomainEvent):
+    member_id: MemberId
+    email: str
+
+
+@dataclass(frozen=True)
+class MemberValidated(DomainEvent):
+    member_id: MemberId
+
+
+@dataclass(frozen=True)
+class MemberActivated(DomainEvent):
+    member_id: MemberId
+
+
+@dataclass(frozen=True)
+class MemberSuspended(DomainEvent):
+    member_id: MemberId
+
+
+@dataclass(frozen=True)
+class MemberRejected(DomainEvent):
+    member_id: MemberId
+
+
+@dataclass(frozen=True)
+class MemberExited(DomainEvent):
+    member_id: MemberId
+
+===== domain/member/entities.py =====
+
+# domain/member/entities.py
+
+from dataclasses import dataclass, field
+from datetime import datetime, UTC
+from typing import Optional
+
+from domain.shared.aggregate_root import AggregateRoot
+from domain.member.status import MemberStatus
+from domain.member.value_objects import Address, MemberId, MemberRole, TaxInformation
+from domain.member.events import (
+    MemberRegistered,
+    MemberValidated,
+    MemberActivated,
+    MemberSuspended,
+    MemberRejected,
+    MemberExited,
+)
+from domain.shared.exceptions import BusinessRuleViolation
+from domain.shared.time_provider import TimeProvider
+
+time_provider = TimeProvider()
+
+@dataclass
+class Member(AggregateRoot):
+
+    id: MemberId = field(default_factory=MemberId.generate)
+
+    name: str = ""
+    email: str = ""
+
+    role: MemberRole = MemberRole.CONSUMER
+    status: MemberStatus = MemberStatus.REGISTERED
+
+    tax_info: Optional[TaxInformation] = None
+    address: Optional[Address] = None
+
+    created_at: datetime = field(default_factory=lambda: time_provider.now())
+
+    # -----------------------
+    # FACTORY EXPLICITA (ONLY ENTRY POINT)
+    # -----------------------
+    @staticmethod
+    def create(name, email, role, tax_info, address) -> "Member":
+        member = Member(
+            name=name,
+            email=email,
+            role=role,
+            tax_info=tax_info,
+            address=address,
+            status=MemberStatus.PENDING,
+        )
+
+        member.add_event(MemberRegistered(member.id, email))
+
+        return member
+
+    # -----------------------
+    # RULES
+    # -----------------------
+    def _ensure_status(self, allowed: set[MemberStatus]):
+        if self.status not in allowed:
+            raise BusinessRuleViolation(
+                f"Invalid status: {self.status}"
+            )
+
+    # -----------------------
+    # LIFECYCLE
+    # -----------------------
+    def validate(self):
+        self.status = MemberStatus.VALIDATED
+        self.add_event(MemberValidated(self.id))
+
+    def activate(self):
+        self._ensure_status({MemberStatus.VALIDATED})
+
+        if not self.tax_info:
+            raise BusinessRuleViolation("Missing tax info")
+
+        if not self.address:
+            raise BusinessRuleViolation("Missing address")
+
+        self.status = MemberStatus.ACTIVE
+        self.add_event(MemberActivated(self.id))
+
+    def suspend(self):
+        self._ensure_status({MemberStatus.ACTIVE})
+        self.status = MemberStatus.SUSPENDED
+        self.add_event(MemberSuspended(self.id))
+
+    def reject(self):
+        self.status = MemberStatus.REJECTED
+        self.add_event(MemberRejected(self.id))
+
+    def exit(self):
+        self.status = MemberStatus.EXITED
+        self.add_event(MemberExited(self.id))
+
+    def change_role(self, role: MemberRole):
+        from domain.member.rules import MemberRules
+
+        MemberRules.assert_can_change_role(self.status)
+        self.role = role
+
+===== domain/member/repository.py =====
+
+# domain/member/repository.py
+
+from abc import ABC, abstractmethod
+from domain.member.entities import Member
+from domain.member.value_objects import MemberId
+
+
+class MemberRepository(ABC):
+
+    @abstractmethod
+    def save(self, member: Member) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, member_id: MemberId) -> Member | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_by_email(self, email: str) -> Member | None:
+        raise NotImplementedError
+
+===== domain/member/status.py =====
+
+# domain/member/status.py
+
+from enum import Enum
+from domain.shared.exceptions import InvalidStateTransition
+
+
+class MemberStatus(str, Enum):
+    REGISTERED = "MEM-REG"
+    PENDING = "MEM-PENDING"
+    VALIDATED = "MEM-VALID"
+    ACTIVE = "MEM-ACTIVE"
+    SUSPENDED = "MEM-SUSP"
+    REJECTED = "MEM-REJ"
+    EXITED = "MEM-EXIT"
+
+
+ALLOWED_TRANSITIONS = {
+    MemberStatus.REGISTERED: {
+        MemberStatus.PENDING,
+    },
+
+    MemberStatus.PENDING: {
+        MemberStatus.VALIDATED,
+        MemberStatus.REJECTED,
+    },
+
+    MemberStatus.VALIDATED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.REJECTED,
+    },
+
+    MemberStatus.ACTIVE: {
+        MemberStatus.SUSPENDED,
+        MemberStatus.EXITED,
+    },
+
+    MemberStatus.SUSPENDED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.EXITED,
+    },
+}
+
+
+class MemberStateMachine:
+
+    def __init__(self, current_status: MemberStatus):
+        self.current_status = current_status
+
+    def can_transition(self, target_status: MemberStatus) -> bool:
+        return (
+            target_status
+            in ALLOWED_TRANSITIONS.get(self.current_status, set())
+        )
+
+    def transition(self, target_status: MemberStatus) -> MemberStatus:
+
+        if not self.can_transition(target_status):
+            raise InvalidStateTransition(
+                f"{self.current_status} → {target_status} not allowed"
+            )
+
+        self.current_status = target_status
+
+        return self.current_status
+
+===== domain/member/value_objects.py =====
+
+# domain/member/value_objects.py
+
+from dataclasses import dataclass
+from uuid import UUID, uuid4
+from enum import Enum
+
+
+@dataclass(frozen=True)
+class MemberId:
+    value: UUID
+
+    @staticmethod
+    def generate() -> "MemberId":
+        return MemberId(uuid4())
+
+
+@dataclass(frozen=True)
+class TaxInformation:
+    fiscal_code: str
+
+    def __post_init__(self):
+
+        if self.fiscal_code is None:
+            raise ValueError("Fiscal code is required")
+
+        normalized = self.fiscal_code.strip().upper()
+
+        # FIX: tolleriamo input sporco nei test + validazione reale separata
+        if len(normalized) != 16:
+            raise ValueError(
+                f"Invalid fiscal code length: expected 16, got {len(normalized)}"
+            )
+
+        object.__setattr__(self, "fiscal_code", normalized)
+
+@dataclass(frozen=True)
+class Address:
+    street: str
+    city: str
+    postal_code: str
+    country: str
+
+    def full_address(self) -> str:
+        return (
+            f"{self.street}, "
+            f"{self.postal_code} "
+            f"{self.city}, "
+            f"{self.country}"
+        )
+
+
+class MemberRole(str, Enum):
+    CONSUMER = "CONSUMER"
+    PRODUCER = "PRODUCER"
+    PROSUMER = "PROSUMER"
+
+    def can_produce(self) -> bool:
+        return self in {
+            MemberRole.PRODUCER,
+            MemberRole.PROSUMER,
+        }
+
+    def can_consume(self) -> bool:
+        return self in {
+            MemberRole.CONSUMER,
+            MemberRole.PROSUMER,
+        }
+
+===== domain/member/policies.py =====
+
+# domain/member/policies.py
+
+from domain.member.rules import MemberRules
+from domain.member.status import MemberStatus
+from domain.member.value_objects import MemberRole
+from domain.member.exceptions import InvalidMemberStateError
+
+
+class ActivationPolicy:
+
+    @staticmethod
+    def validate(member):
+        try:
+            MemberRules.assert_can_activate(member.status)
+        except Exception as e:
+            raise InvalidMemberStateError(str(e))
+
+        if not member.tax_info:
+            raise InvalidMemberStateError("Tax information required")
+
+        if not member.address:
+            raise InvalidMemberStateError("Address required")
+
+
+class SuspensionPolicy:
+
+    @staticmethod
+    def validate(member):
+        try:
+            MemberRules.assert_can_suspend(member.status)
+        except Exception as e:
+            raise InvalidMemberStateError(str(e))
+
+===== domain/member/exceptions.py =====
+
+# domain/member/exceptions.py
+
+class MemberDomainError(Exception):
+    pass
+
+
+class InvalidMemberStateError(MemberDomainError):
+    pass
+
+
+class MemberAlreadyActiveError(MemberDomainError):
+    pass
+
+
+class MemberAlreadySuspendedError(MemberDomainError):
+    pass
+
+
+class InvalidMemberRoleChange(MemberDomainError):
+    pass
+
+===== domain/member/rules.py =====
+
+# domain/member/rules.py
+
+from domain.member.status import MemberStatus
+from domain.member.value_objects import MemberRole
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+class MemberRules:
+
+    @staticmethod
+    def assert_can_activate(status: MemberStatus):
+        if status != MemberStatus.VALIDATED:
+            raise BusinessRuleViolation(
+                "Member must be VALIDATED before activation"
+            )
+
+    @staticmethod
+    def assert_can_suspend(status: MemberStatus):
+        if status != MemberStatus.ACTIVE:
+            raise BusinessRuleViolation(
+                "Only ACTIVE members can be suspended"
+            )
+
+    @staticmethod
+    def assert_can_change_role(status: MemberStatus):
+        if status != MemberStatus.ACTIVE:
+            raise BusinessRuleViolation(
+                "Only ACTIVE members can change role"
+            )
+
+    @staticmethod
+    def assert_valid_role_change(role: MemberRole):
+        if role not in MemberRole:
+            raise BusinessRuleViolation("Invalid role")
+
+===== domain/energy/__init__.py =====
+
+
+
+===== domain/energy/entities.py =====
+
+# domain/energy/entities.py
+
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import uuid4
+
+from domain.energy.value_objects import EnergyQuantity
+from domain.shared.time_provider import TimeProvider
+from domain.shared.id_provider import IdProvider
+
+time_provider = TimeProvider()
+id_provider = IdProvider()
+
+@dataclass
+class EnergyRecord:
+
+    id: str
+    member_id: str
+    quantity: EnergyQuantity
+    recorded_at: datetime
+
+    @staticmethod
+    def create(member_id: str, kwh: float) -> "EnergyRecord":
+
+        return EnergyRecord(
+            id=id_provider.generate(),
+            member_id=str(member_id),
+            quantity=EnergyQuantity(kwh),
+            recorded_at=time_provider.now()
+        )
+
+===== domain/energy/services.py =====
+
+# domain/energy/services.py
+
+from domain.energy.value_objects import EnergyQuantity
+
+
+class EnergyDomainService:
+
+    @staticmethod
+    def calculate_total(records) -> EnergyQuantity:
+        return EnergyQuantity(
+            sum(r.quantity.value for r in records)
+        )
+
+===== domain/energy/status.py =====
+
+# domain/energy/status.py
+
+from enum import Enum
+
+from domain.shared.exceptions import (
+    InvalidStateTransition,
+)
+
+
+class EnergyStatus(str, Enum):
+
+    RECEIVED = "ENG-REC-RCV"
+    VALIDATING = "ENG-VAL-START"
+    VALIDATED = "ENG-VAL-OK"
+    REJECTED = "ENG-VAL-ERR"
+
+    AGGREGATING = "ENG-AGG-START"
+    AGGREGATED = "ENG-AGG-DONE"
+
+    CALCULATING = "ENG-CALC-START"
+    COMPLETED = "ENG-CALC-DONE"
+
+    FAILED = "ENG-FAIL"
+
+
+ALLOWED_TRANSITIONS = {
+
+    EnergyStatus.RECEIVED: {
+        EnergyStatus.VALIDATING,
+    },
+
+    EnergyStatus.VALIDATING: {
+        EnergyStatus.VALIDATED,
+        EnergyStatus.REJECTED,
+    },
+
+    EnergyStatus.VALIDATED: {
+        EnergyStatus.AGGREGATING,
+    },
+
+    EnergyStatus.AGGREGATING: {
+        EnergyStatus.AGGREGATED,
+    },
+
+    EnergyStatus.AGGREGATED: {
+        EnergyStatus.CALCULATING,
+    },
+
+    EnergyStatus.CALCULATING: {
+        EnergyStatus.COMPLETED,
+    },
+}
+
+
+class EnergyStateMachine:
+
+    def __init__(self, status: EnergyStatus):
+        self._status = status
+
+    @property
+    def current_status(self):
+        return self._status
+
+    def can_transition(
+        self,
+        target_status: EnergyStatus
+    ) -> bool:
+
+        return (
+            target_status
+            in ALLOWED_TRANSITIONS.get(
+                self._status,
+                set(),
+            )
+        )
+
+    def transition(
+        self,
+        target_status: EnergyStatus
+    ) -> EnergyStatus:
+
+        if not self.can_transition(target_status):
+            raise InvalidStateTransition(
+                f"{self._status} → "
+                f"{target_status} not allowed"
+            )
+
+        self._status = target_status
+
+        return self._status
+
+===== domain/energy/value_objects.py =====
+
+# domain/energy/value_objects.py
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EnergyQuantity:
+    value: float
+
+    def __post_init__(self):
+        if self.value < 0:
+            raise ValueError("Energy quantity cannot be negative")
+
+    def __add__(self, other: "EnergyQuantity") -> "EnergyQuantity":
+        return EnergyQuantity(self.value + other.value)
+
+    @staticmethod
+    def zero() -> "EnergyQuantity":
+        return EnergyQuantity(0.0)
+
+===== domain/energy/repository.py =====
+
+# domain/energy/repository.py
+
+from abc import ABC, abstractmethod
+from domain.energy.entities import EnergyRecord
+
+class EnergyRepository(ABC):
+
+    @abstractmethod
+    def save(self, record: EnergyRecord) -> None:
+        pass
+
+    @abstractmethod
+    def get_all(self) -> list[EnergyRecord]:
+        pass
+
+===== domain/incentive/__init__.py =====
+
+
+
+===== domain/incentive/entities.py =====
+
+# domain/incentive/entities.py
+
+===== domain/incentive/services.py =====
+
+# domain/incentive/services.py
+
+===== domain/__init__.py =====
+
+
+
+===== domain/shared/aggregate_root.py =====
+
+# domain/shared/aggregate_root.py
+
+from dataclasses import dataclass, field
+from typing import List
+from uuid import UUID, uuid4
+
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass
+class AggregateRoot:
+
+    internal_id: UUID = field(default_factory=uuid4, init=False)
+
+    _events: List[DomainEvent] = field(default_factory=list, init=False, repr=False)
+
+    def add_event(self, event: DomainEvent) -> None:
+        self._events.append(event)
+
+    def pull_events(self) -> list[DomainEvent]:
+        events = list(self._events)
+        self._events.clear()
+        return events
+
+===== domain/shared/exceptions.py =====
+
+# domain/shared/exceptions.py
+
+class DomainException(Exception):
+    """Base exception for domain layer."""
+
+
+class BusinessRuleViolation(DomainException):
+    """Raised when a business invariant is violated."""
+
+
+class InvalidStateTransition(DomainException):
+    """Raised when a state machine transition is invalid."""
+
+===== domain/shared/unit_of_work.py =====
+
+# domain/shared/unit_of_work.py
+
+from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager
+
+
+class UnitOfWork(AbstractContextManager, ABC):
+
+    member_repository = None
+    energy_repository = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.rollback()
+        else:
+            self.commit()
+
+    # -------------------------
+    # EVENT BUFFER
+    # -------------------------
+    def __init__(self):
+        self._events = []
+
+    def collect(self, events: list):
+        if not events:
+            return
+        self._events.extend(events)
+
+    def pop_events(self):
+        events = list(self._events)
+        self._events.clear()
+        return events
+
+    # -------------------------
+    # ABSTRACT
+    # -------------------------
+    @abstractmethod
+    def commit(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def rollback(self):
+        raise NotImplementedError
+
+===== domain/shared/value_objects.py =====
+
+# domain/shared/value_objects.py
+
+from dataclasses import dataclass
+from decimal import Decimal
+
+
+@dataclass(frozen=True)
+class MoneyAmount:
+    value: Decimal
+
+    def __post_init__(self):
+
+        if self.value < 0:
+            raise ValueError(
+                "Money amount cannot be negative"
+            )
+
+    def __add__(self, other: "MoneyAmount") -> "MoneyAmount":
+        return MoneyAmount(self.value + other.value)
+
+===== domain/shared/event_publisher.py =====
+
+# domain/shared/event_publisher.py
+
+from abc import ABC, abstractmethod
+
+from domain.shared.domain_event import DomainEvent
+
+
+
+class EventPublisher(ABC):
+
+    @abstractmethod
+    def publish(self, events: list[DomainEvent]) -> None:
+        pass
+
+===== domain/shared/domain_event.py =====
+
+# domain/shared/domain_event.py
+
+from dataclasses import dataclass, field
+from datetime import datetime, UTC
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    """
+    Base immutable domain event.
+    """
+
+    event_id: UUID = field(
+        default_factory=uuid4,
+        init=False,
+    )
+
+    occurred_on: datetime = field(
+        default_factory=lambda: datetime.now(UTC),
+        init=False,
+    )
+
+===== domain/shared/__init__.py =====
+
+
+
+===== domain/shared/result.py =====
+
+# domain/shared/result.py
+
+from dataclasses import dataclass
+from typing import Generic, TypeVar, Optional
+
+T = TypeVar("T")
+E = TypeVar("E")
+
+
+@dataclass(frozen=True)
+class Result(Generic[T, E]):
+    value: Optional[T] = None
+    error: Optional[E] = None
+
+    @staticmethod
+    def ok(value: T) -> "Result[T, E]":
+        return Result(value=value)
+
+    @staticmethod
+    def fail(error: E) -> "Result[T, E]":
+        return Result(error=error)
+
+    def is_ok(self) -> bool:
+        return self.error is None
+
+    def is_fail(self) -> bool:
+        return self.error is not None
+
+===== domain/shared/value_objects_extra.py =====
+
+# domain/shared/value_objects_extra.py
+
+from dataclasses import dataclass
+from decimal import Decimal
+
+
+@dataclass(frozen=True)
+class Percentage:
+    value: Decimal
+
+    def __post_init__(self):
+        if self.value < 0 or self.value > 100:
+            raise ValueError("Percentage must be between 0 and 100")
+
+
+@dataclass(frozen=True)
+class PodCode:
+    value: str
+
+    def __post_init__(self):
+        if not self.value or len(self.value) < 5:
+            raise ValueError("Invalid POD code")
+
+
+@dataclass(frozen=True)
+class IncentiveAmount:
+    value: Decimal
+
+    def __post_init__(self):
+        if self.value < 0:
+            raise ValueError("Incentive cannot be negative")
+
+
+@dataclass(frozen=True)
+class TimeSlot:
+    start: str
+    end: str
+
+===== domain/shared/time_provider.py =====
+
+# domain/shared/time_provider.py
+
+from datetime import datetime, UTC
+
+
+class TimeProvider:
+
+    def now(self) -> datetime:
+        return datetime.now(UTC)
+
+
+class FrozenTimeProvider(TimeProvider):
+
+    def __init__(self, fixed_time):
+        self.fixed_time = fixed_time
+
+    def now(self) -> datetime:
+        return self.fixed_time
+
+===== domain/shared/id_provider.py =====
+
+# domain/shared/id_provider.py
+
+from uuid import uuid4
+
+
+class IdProvider:
+
+    def generate(self):
+        return uuid4()
+
+
+class FixedIdProvider(IdProvider):
+
+    def __init__(self):
+        self.counter = 0
+
+    def generate(self):
+        self.counter += 1
+        return f"fixed-id-{self.counter}"

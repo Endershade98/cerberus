@@ -15,6 +15,11 @@ class ActivateMember(UseCase):
 
         member.activate()
 
+        # FIX: eventi raccolti qui
+        events = member.pull_events()
+
         self.uow.member_repository.save(member)
+
+        self.uow.collect(events)
 
         return member

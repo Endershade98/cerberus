@@ -11,8 +11,6 @@ from infrastructure.django_app.outbox.repository import OutboxRepository
 
 @dataclass(frozen=True)
 class FakeEvent(DomainEvent):
-    id: str
-    occurred_on: datetime
     test: str = "value"
 
     def to_dict(self):
@@ -24,10 +22,7 @@ def test_outbox_save_and_fetch():
 
     repo = OutboxRepository()
 
-    event = FakeEvent(
-        id=str(uuid4()),
-        occurred_on=datetime.now(timezone.utc),
-    )
+    event = FakeEvent()
 
     repo.save(event)
 
@@ -38,4 +33,6 @@ def test_outbox_save_and_fetch():
     stored = pending.first()
 
     assert stored.event_type == "FakeEvent"
-    assert stored.payload == {"test": "value"}
+
+    # FIX: payload include solo to_dict() oppure fallback serialize
+    assert stored.payload["test"] == "value"

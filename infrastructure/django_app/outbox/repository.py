@@ -7,7 +7,7 @@ class OutboxRepository:
 
     def save(self, event):
         OutboxEvent.objects.create(
-            id=event.id,
+            id=event.event_id,
             event_type=type(event).__name__,
             payload=self._serialize(event),
             occurred_on=event.occurred_on,
@@ -21,11 +21,13 @@ class OutboxRepository:
         OutboxEvent.objects.filter(id=event_id).update(processed=True)
 
     def _serialize(self, event):
-        if hasattr(event, "to_dict"):
-            return event.to_dict()
-
         return {
-            k: str(v)
+            k: self._safe(v)
             for k, v in event.__dict__.items()
             if not k.startswith("_")
         }
+
+    def _safe(self, v):
+        if hasattr(v, "value"):
+            return str(v.value)
+        return str(v)
