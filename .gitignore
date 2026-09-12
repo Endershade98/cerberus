@@ -206,7 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-.vscode
+# VSCode
+.vscode/
+.vscode/launch.json
 
+# Documents
+docs/frontend/
 docs/frontend/web-app.md
 docs/frontend/android-app.mds
