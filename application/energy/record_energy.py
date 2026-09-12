@@ -1,18 +1,59 @@
 # application/energy/record_energy.py
 
+from application.energy.dtos import RecordEnergyRequest
+
 from domain.energy.entities import EnergyRecord
-from application.common.use_case import UseCase
+from domain.energy.events import EnergyRecorded
+from domain.energy.value_objects import EnergyQuantity
 
 
-class RecordEnergyUseCase(UseCase):
 
-    def _execute(self, member_id: str, kwh: float):
+class RecordEnergyUseCase:
+
+
+    def __init__(
+        self,
+        repository,
+        uow,
+        publisher,
+    ):
+
+        self.repository = repository
+        self.uow = uow
+        self.publisher = publisher
+
+
+
+    def execute(
+        self,
+        request: RecordEnergyRequest,
+    ):
 
         record = EnergyRecord.create(
-            member_id=member_id,
-            kwh=kwh
+            asset_id=request.asset_id,
+            timestamp=request.timestamp,
+            production=EnergyQuantity(
+                float(request.production_kwh)
+            ),
+            consumption=EnergyQuantity(
+                float(request.consumption_kwh)
+            ),
         )
 
-        self.uow.energy_repository.save(record)
+
+        with self.uow:
+
+            self.repository.save(record)
+
+
+            self.publisher.publish(
+                [
+                    EnergyRecorded(
+                        record.id,
+                        record.asset_id
+                    )
+                ]
+            )
+
 
         return record

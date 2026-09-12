@@ -1,10 +1,14 @@
 # domain/member/status.py
 
 from enum import Enum
-from domain.shared.exceptions import InvalidStateTransition
+
+from domain.shared.exceptions import (
+    InvalidStateTransition,
+)
 
 
 class MemberStatus(str, Enum):
+
     REGISTERED = "MEM-REG"
     PENDING = "MEM-PENDING"
     VALIDATED = "MEM-VALID"
@@ -15,6 +19,7 @@ class MemberStatus(str, Enum):
 
 
 ALLOWED_TRANSITIONS = {
+
     MemberStatus.REGISTERED: {
         MemberStatus.PENDING,
     },
@@ -43,20 +48,36 @@ ALLOWED_TRANSITIONS = {
 
 class MemberStateMachine:
 
-    def __init__(self, current_status: MemberStatus):
+    def __init__(
+        self,
+        current_status: MemberStatus,
+    ):
         self.current_status = current_status
 
-    def can_transition(self, target_status: MemberStatus) -> bool:
+    def can_transition(
+        self,
+        target_status: MemberStatus,
+    ) -> bool:
+
         return (
             target_status
-            in ALLOWED_TRANSITIONS.get(self.current_status, set())
+            in ALLOWED_TRANSITIONS.get(
+                self.current_status,
+                set(),
+            )
         )
 
-    def transition(self, target_status: MemberStatus) -> MemberStatus:
+    def transition(
+        self,
+        target_status: MemberStatus,
+    ) -> MemberStatus:
 
-        if not self.can_transition(target_status):
+        if not self.can_transition(
+            target_status
+        ):
             raise InvalidStateTransition(
-                f"{self.current_status} → {target_status} not allowed"
+                f"{self.current_status} -> "
+                f"{target_status} not allowed"
             )
 
         self.current_status = target_status

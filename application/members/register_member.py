@@ -8,10 +8,14 @@ class RegisterMember(UseCase):
 
     def _execute(self, input_dto):
 
-        member = self.uow.member_repository.find_by_email(input_dto.email)
+        member = self.uow.member_repository.find_by_email(
+            input_dto.email
+        )
 
         if member:
-            raise ValueError("Member already exists")
+            raise ValueError(
+                "Member already exists"
+            )
 
         member = Member.create(
             name=input_dto.name,
@@ -21,11 +25,6 @@ class RegisterMember(UseCase):
             address=input_dto.address,
         )
 
-        # eventi iniziali
-        events = member.pull_events()
-
         self.uow.member_repository.save(member)
-
-        self.uow.collect(events)
 
         return member

@@ -2,27 +2,50 @@
 
 from django.db import transaction
 
+from domain.shared.unit_of_work import UnitOfWork
 
-class DjangoUnitOfWork:
+
+class DjangoUnitOfWork(UnitOfWork):
+
     def __init__(self, outbox_repo):
+
+        super().__init__()
+
         self.outbox_repo = outbox_repo
+
         self._transaction = None
-        self._events = []
+
+        self.member_repository = None
+        self.energy_repository = None
 
     # ---------------------------
     # Context manager
     # ---------------------------
+
     def __enter__(self):
+
         self._transaction = transaction.atomic()
         self._transaction.__enter__()
 
-        self.member_repository = self._build_member_repository()
-        self.energy_repository = self._build_energy_repository()
+        self.member_repository = (
+            self._build_member_repository()
+        )
+
+        self.energy_repository = (
+            self._build_energy_repository()
+        )
 
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(
+        self,
+        exc_type,
+        exc,
+        tb,
+    ):
+
         try:
+
             if exc_type:
                 self.rollback()
                 return False
@@ -31,41 +54,45 @@ class DjangoUnitOfWork:
             return False
 
         finally:
-            if self._transaction is not None:
-                self._transaction.__exit__(exc_type, exc, tb)
+
+            if self._transaction:
+
+                self._transaction.__exit__(
+                    exc_type,
+                    exc,
+                    tb,
+                )
 
     # ---------------------------
-    # Events collection
+    # Transaction lifecycle
     # ---------------------------
-    def collect(self, events):
-        # idempotente (FIX doppio call ActivateMember test)
-        for e in events:
-            if e not in self._events:
-                self._events.append(e)
 
-    # ---------------------------
-    # Commit
-    # ---------------------------
     def commit(self):
-        for event in self._events:
+
+        for event in self.pop_events():
+
             self.outbox_repo.save(event)
 
-        self._events.clear()
-
     def rollback(self):
-        self._events.clear()
+
+        self.pop_events()
 
     # ---------------------------
-    # Repository builders (placeholder)
+    # Repositories
     # ---------------------------
+
     def _build_member_repository(self):
+
         from infrastructure.django_app.persistence.django.repositories.member_repository import (
             DjangoMemberRepository,
         )
+
         return DjangoMemberRepository()
 
     def _build_energy_repository(self):
+
         from infrastructure.django_app.persistence.django.repositories.energy_repository import (
             DjangoEnergyRepository,
         )
+
         return DjangoEnergyRepository()

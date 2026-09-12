@@ -4,36 +4,56 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from application.energy.record_energy import RecordEnergyUseCase
 from application.energy.calculate_shared import CalculateSharedEnergyUseCase
 
-from interfaces.api.energy.serializers import EnergyRecordSerializer
 from interfaces.api.shared.uow_factory import build_uow
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from datetime import datetime
+from decimal import Decimal
+
+
+from application.energy.dtos import RecordEnergyRequest
+from application.energy.record_energy import RecordEnergy
+
 
 
 class EnergyRecordView(APIView):
 
+
     def post(self, request):
 
-        serializer = EnergyRecordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        use_case = RecordEnergyUseCase(uow=build_uow())
-
-        record = use_case.execute(
-            member_id=str(serializer.validated_data["member_id"]),
-            kwh=serializer.validated_data["kwh"],
+        command = RecordEnergyRequest(
+            asset_id=request.data["asset_id"],
+            timestamp=datetime.fromisoformat(
+                request.data["timestamp"]
+            ),
+            production_kwh=Decimal(
+                request.data["production"]
+            ),
+            consumption_kwh=Decimal(
+                request.data["consumption"]
+            )
         )
+
+
+        use_case = RecordEnergy(
+            repository=self.repository,
+            uow=self.uow,
+            publisher=self.publisher
+        )
+
+
+        result = use_case.execute(command)
+
 
         return Response(
             {
-                "id": str(record.id),
-                "member_id": str(record.member_id),
-                "kwh": record.quantity.value,
-            },
-            status=status.HTTP_201_CREATED,
+                "id": str(result.id)
+            }
         )
-
 
 class EnergyCalculateView(APIView):
 

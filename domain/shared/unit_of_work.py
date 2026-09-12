@@ -4,39 +4,48 @@ from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 
 
-class UnitOfWork(AbstractContextManager, ABC):
+class UnitOfWork(
+    AbstractContextManager,
+    ABC,
+):
 
     member_repository = None
     energy_repository = None
 
+    def __init__(self):
+
+        self._events = []
+
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type,
+        exc_val,
+        exc_tb,
+    ):
+
         if exc_type:
             self.rollback()
         else:
             self.commit()
 
-    # -------------------------
-    # EVENT BUFFER
-    # -------------------------
-    def __init__(self):
-        self._events = []
+    def collect(self, events):
 
-    def collect(self, events: list):
         if not events:
             return
+
         self._events.extend(events)
 
     def pop_events(self):
+
         events = list(self._events)
+
         self._events.clear()
+
         return events
 
-    # -------------------------
-    # ABSTRACT
-    # -------------------------
     @abstractmethod
     def commit(self):
         raise NotImplementedError

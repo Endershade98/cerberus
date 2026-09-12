@@ -2,29 +2,52 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import uuid4
 
-from domain.energy.value_objects import EnergyQuantity
-from domain.shared.time_provider import TimeProvider
+from domain.energy.value_objects import (
+    EnergyQuantity,
+    FlowDirection,
+)
+from domain.shared.aggregate_root import AggregateRoot
 from domain.shared.id_provider import IdProvider
+from domain.shared.time_provider import TimeProvider
 
-time_provider = TimeProvider()
+
 id_provider = IdProvider()
+time_provider = TimeProvider()
+
 
 @dataclass
-class EnergyRecord:
+class EnergyRecord(AggregateRoot):
 
     id: str
-    member_id: str
+    asset_id: str
+    timestamp: datetime
     quantity: EnergyQuantity
-    recorded_at: datetime
+    direction: FlowDirection
+
 
     @staticmethod
-    def create(member_id: str, kwh: float) -> "EnergyRecord":
+    def create(
+        asset_id: str,
+        timestamp: datetime,
+        production: EnergyQuantity,
+        consumption: EnergyQuantity,
+    ):
+
+        if production.value > 0:
+
+            return EnergyRecord(
+                id=id_provider.generate(),
+                asset_id=asset_id,
+                timestamp=timestamp,
+                quantity=production,
+                direction=FlowDirection.PRODUCTION,
+            )
 
         return EnergyRecord(
             id=id_provider.generate(),
-            member_id=str(member_id),
-            quantity=EnergyQuantity(kwh),
-            recorded_at=time_provider.now()
+            asset_id=asset_id,
+            timestamp=timestamp,
+            quantity=consumption,
+            direction=FlowDirection.CONSUMPTION,
         )

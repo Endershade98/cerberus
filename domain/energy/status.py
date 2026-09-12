@@ -10,14 +10,14 @@ from domain.shared.exceptions import (
 class EnergyStatus(str, Enum):
 
     RECEIVED = "ENG-REC-RCV"
+
     VALIDATING = "ENG-VAL-START"
     VALIDATED = "ENG-VAL-OK"
+
     REJECTED = "ENG-VAL-ERR"
 
     AGGREGATING = "ENG-AGG-START"
-    AGGREGATED = "ENG-AGG-DONE"
 
-    CALCULATING = "ENG-CALC-START"
     COMPLETED = "ENG-CALC-DONE"
 
     FAILED = "ENG-FAIL"
@@ -39,52 +39,39 @@ ALLOWED_TRANSITIONS = {
     },
 
     EnergyStatus.AGGREGATING: {
-        EnergyStatus.AGGREGATED,
-    },
-
-    EnergyStatus.AGGREGATED: {
-        EnergyStatus.CALCULATING,
-    },
-
-    EnergyStatus.CALCULATING: {
         EnergyStatus.COMPLETED,
+        EnergyStatus.FAILED,
+    },
+
+    EnergyStatus.FAILED: {
+        EnergyStatus.VALIDATING,
     },
 }
 
 
 class EnergyStateMachine:
 
-    def __init__(self, status: EnergyStatus):
-        self._status = status
-
-    @property
-    def current_status(self):
-        return self._status
-
-    def can_transition(
+    def __init__(
         self,
-        target_status: EnergyStatus
-    ) -> bool:
-
-        return (
-            target_status
-            in ALLOWED_TRANSITIONS.get(
-                self._status,
-                set(),
-            )
-        )
+        current_status: EnergyStatus,
+    ):
+        self.current_status = current_status
 
     def transition(
         self,
-        target_status: EnergyStatus
+        target_status: EnergyStatus,
     ) -> EnergyStatus:
 
-        if not self.can_transition(target_status):
+        allowed = ALLOWED_TRANSITIONS.get(
+            self.current_status,
+            set(),
+        )
+
+        if target_status not in allowed:
             raise InvalidStateTransition(
-                f"{self._status} → "
-                f"{target_status} not allowed"
+                f"{self.current_status} -> {target_status}"
             )
 
-        self._status = target_status
+        self.current_status = target_status
 
-        return self._status
+        return self.current_status

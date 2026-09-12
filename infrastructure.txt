@@ -1,5 +1,4 @@
 
-
 ===== infrastructure/django_app/events/handlers/member_handlers.py =====
 
 # infrastructure/django_app/events/handlers/member_handlers.py
@@ -11,9 +10,7 @@ class MemberActivatedHandler:
 
     def handle(self, event):
         print(f"[EVENT] Member activated: {event.member_id}")
-
 ===== infrastructure/django_app/events/handlers/__init__.py =====
-
 
 
 ===== infrastructure/django_app/events/bus.py =====
@@ -35,7 +32,6 @@ class EventBus:
     def publish(self, event: Any):
         for handler in self._handlers.get(type(event), []):
             handler(event)
-
 ===== infrastructure/django_app/events/dispatcher.py =====
 
 # infrastructure/django_app/events/dispatcher.py
@@ -47,7 +43,6 @@ class EventDispatcher:
 
     def dispatch(self, event):
         self.bus.publish(event)
-
 ===== infrastructure/django_app/events/publisher.py =====
 
 # infrastructure/django_app/events/publisher.py
@@ -67,9 +62,7 @@ class EventPublisher:
         if self.dispatcher:
             for event in events:
                 self.dispatcher.dispatch(event)
-
 ===== infrastructure/django_app/events/__init__.py =====
-
 
 
 ===== infrastructure/django_app/events/registry.py =====
@@ -93,7 +86,6 @@ EVENT_REGISTRY = {
     "MemberRejected": MemberRejected,
     "MemberExited": MemberExited,
 }
-
 ===== infrastructure/django_app/outbox/repository.py =====
 
 # infrastructure/django_app/outbox/repository.py
@@ -129,7 +121,6 @@ class OutboxRepository:
         if hasattr(v, "value"):
             return str(v.value)
         return str(v)
-
 ===== infrastructure/django_app/outbox/dispatcher.py =====
 
 # infrastructure/django_app/outbox/dispatcher.py
@@ -162,9 +153,7 @@ class OutboxDispatcher:
                 self.bus.publish(event)
 
                 self.repo.mark_processed(outbox_event.id)
-
 ===== infrastructure/django_app/outbox/__init__.py =====
-
 
 
 ===== infrastructure/django_app/persistence/django/repositories/member_repository.py =====
@@ -225,19 +214,32 @@ class DjangoMemberRepository(MemberRepository):
             ) if obj.street else None,
             created_at=obj.created_at,
         )
-
 ===== infrastructure/django_app/persistence/django/repositories/energy_repository.py =====
 
 # infrastructure/django_app/persistence/django/repositories/energy_repository.py
 
 from domain.energy.entities import EnergyRecord
 from domain.energy.value_objects import EnergyQuantity
-from infrastructure.persistence.django.models import EnergyModel
-from domain.energy.repository import EnergyRepository
+from domain.energy.batch import EnergyBatch
 
-class DjangoEnergyRepository(EnergyRepository):
+from domain.energy.repository import (
+    EnergyRepository,
+)
 
-    def save(self, record: EnergyRecord) -> None:
+from infrastructure.persistence.django.models import (
+    EnergyModel,
+)
+
+
+class DjangoEnergyRepository(
+    EnergyRepository
+):
+
+    def save(
+        self,
+        record: EnergyRecord,
+    ) -> None:
+
         EnergyModel.objects.create(
             id=record.id,
             member_id=record.member_id,
@@ -245,44 +247,90 @@ class DjangoEnergyRepository(EnergyRepository):
             quantity=record.quantity.value,
         )
 
-    def get_all(self) -> list[EnergyRecord]:
+    def get_all(
+        self,
+    ) -> list[EnergyRecord]:
+
         return [
             EnergyRecord(
                 id=str(row.id),
                 member_id=str(row.member_id),
-                quantity=EnergyQuantity(float(row.quantity)),
+                quantity=EnergyQuantity(
+                    float(row.quantity)
+                ),
                 recorded_at=row.recorded_at,
             )
-            for row in EnergyModel.objects.all()
+            for row
+            in EnergyModel.objects.all()
         ]
 
+    def get_batch(
+        self,
+        batch_id: str,
+    ) -> EnergyBatch | None:
+
+        raise NotImplementedError(
+            "EnergyBatch persistence not implemented"
+        )
+
+    def save_batch(
+        self,
+        batch: EnergyBatch,
+    ) -> None:
+
+        raise NotImplementedError(
+            "EnergyBatch persistence not implemented"
+        )
 ===== infrastructure/django_app/persistence/django/repositories/unit_of_work.py =====
 
 # infrastructure/django_app/persistence/django/repositories/unit_of_work.py
 
 from django.db import transaction
 
+from domain.shared.unit_of_work import UnitOfWork
 
-class DjangoUnitOfWork:
+
+class DjangoUnitOfWork(UnitOfWork):
+
     def __init__(self, outbox_repo):
+
+        super().__init__()
+
         self.outbox_repo = outbox_repo
+
         self._transaction = None
-        self._events = []
+
+        self.member_repository = None
+        self.energy_repository = None
 
     # ---------------------------
     # Context manager
     # ---------------------------
+
     def __enter__(self):
+
         self._transaction = transaction.atomic()
         self._transaction.__enter__()
 
-        self.member_repository = self._build_member_repository()
-        self.energy_repository = self._build_energy_repository()
+        self.member_repository = (
+            self._build_member_repository()
+        )
+
+        self.energy_repository = (
+            self._build_energy_repository()
+        )
 
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(
+        self,
+        exc_type,
+        exc,
+        tb,
+    ):
+
         try:
+
             if exc_type:
                 self.rollback()
                 return False
@@ -291,67 +339,64 @@ class DjangoUnitOfWork:
             return False
 
         finally:
-            if self._transaction is not None:
-                self._transaction.__exit__(exc_type, exc, tb)
+
+            if self._transaction:
+
+                self._transaction.__exit__(
+                    exc_type,
+                    exc,
+                    tb,
+                )
 
     # ---------------------------
-    # Events collection
+    # Transaction lifecycle
     # ---------------------------
-    def collect(self, events):
-        # idempotente (FIX doppio call ActivateMember test)
-        for e in events:
-            if e not in self._events:
-                self._events.append(e)
 
-    # ---------------------------
-    # Commit
-    # ---------------------------
     def commit(self):
-        for event in self._events:
+
+        for event in self.pop_events():
+
             self.outbox_repo.save(event)
 
-        self._events.clear()
-
     def rollback(self):
-        self._events.clear()
+
+        self.pop_events()
 
     # ---------------------------
-    # Repository builders (placeholder)
+    # Repositories
     # ---------------------------
+
     def _build_member_repository(self):
+
         from infrastructure.django_app.persistence.django.repositories.member_repository import (
             DjangoMemberRepository,
         )
+
         return DjangoMemberRepository()
 
     def _build_energy_repository(self):
+
         from infrastructure.django_app.persistence.django.repositories.energy_repository import (
             DjangoEnergyRepository,
         )
+
         return DjangoEnergyRepository()
-
 ===== infrastructure/django_app/persistence/django/repositories/__init__.py =====
-
 
 
 ===== infrastructure/django_app/persistence/django/mappers/__init__.py =====
 
 
-
 ===== infrastructure/django_app/persistence/django/migrations/__init__.py =====
-
 
 
 ===== infrastructure/django_app/persistence/django/__init__.py =====
 
 
-
 ===== infrastructure/django_app/persistence/__init__.py =====
 
 
-
 ===== infrastructure/django_app/__init__.py =====
-
 
 
 ===== infrastructure/logging/logger.py =====
@@ -399,21 +444,16 @@ class Logger:
 
         cls._loggers[name] = logger
         return logger
-
 ===== infrastructure/logging/__init__.py =====
-
 
 
 ===== infrastructure/migrations/__init__.py =====
 
 
-
 ===== infrastructure/external/__init__.py =====
 
 
-
 ===== infrastructure/__init__.py =====
-
 
 
 ===== infrastructure/apps.py =====
@@ -426,7 +466,6 @@ from django.apps import AppConfig
 class InfrastructureConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "infrastructure"
-
 ===== infrastructure/persistence/django/models.py =====
 
 # infrastructure/persistence/django/models.py
@@ -478,9 +517,7 @@ class OutboxEvent(models.Model):
 
     class Meta:
         db_table = "outbox_events"
-
 ===== infrastructure/persistence/django/__init__.py =====
-
 
 
 ===== infrastructure/persistence/django/apps.py =====
@@ -494,9 +531,7 @@ class PersistenceConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "infrastructure.persistence.django"
     label = "persistence"
-
 ===== infrastructure/persistence/django/migrations/__init__.py =====
-
 
 
 ===== infrastructure/persistence/django/migrations/0001_initial.py =====
@@ -561,6 +596,13 @@ class Migration(migrations.Migration):
         ),
     ]
 
-
 ===== infrastructure/persistence/__init__.py =====
+
+
+===== infrastructure/django/__init__.py =====
+
+
+===== infrastructure/django/apps.py =====
+
+# infrastructure/django/apps.py
 

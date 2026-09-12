@@ -1,0 +1,529 @@
+
+===== application/members/__init__.py =====
+
+
+===== application/members/activate_member.py =====
+
+# application/members/activate_member.py
+
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
+
+
+class ActivateMember(UseCase):
+
+    def _execute(self, member_id):
+
+        member = self.uow.member_repository.get(member_id)
+
+        if not member:
+            raise MemberDomainError(
+                "Member not found"
+            )
+
+        member.activate()
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/validate_member.py =====
+
+# application/members/validate_member.py
+
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
+
+
+class ValidateMember(UseCase):
+
+    def _execute(self, member_id):
+
+        member = self.uow.member_repository.get(member_id)
+
+        if not member:
+            raise MemberDomainError(
+                "Member not found"
+            )
+
+        member.validate()
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/suspend_member.py =====
+
+# application/members/suspend_member.py
+
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
+
+
+class SuspendMember(UseCase):
+
+    def _execute(self, member_id):
+
+        member = self.uow.member_repository.get(member_id)
+
+        if not member:
+            raise MemberDomainError("Member not found")
+
+        member.suspend()
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/reject_member.py =====
+
+# application/members/reject_member.py
+
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
+
+
+class RejectMember(UseCase):
+
+    def _execute(self, member_id):
+
+        member = self.uow.member_repository.get(member_id)
+
+        if not member:
+            raise MemberDomainError("Member not found")
+
+        member.reject()
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/exit_member.py =====
+
+# application/members/exit_member.py
+
+from domain.member.exceptions import MemberDomainError
+from application.common.use_case import UseCase
+
+
+class ExitMember(UseCase):
+
+    def _execute(self, member_id):
+
+        member = self.uow.member_repository.get(member_id)
+
+        if not member:
+            raise MemberDomainError("Member not found")
+
+        member.exit()
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/register_member.py =====
+
+# application/members/register_member.py
+
+from application.common.use_case import UseCase
+from domain.member.entities import Member
+
+
+class RegisterMember(UseCase):
+
+    def _execute(self, input_dto):
+
+        member = self.uow.member_repository.find_by_email(
+            input_dto.email
+        )
+
+        if member:
+            raise ValueError(
+                "Member already exists"
+            )
+
+        member = Member.create(
+            name=input_dto.name,
+            email=input_dto.email,
+            role=input_dto.role,
+            tax_info=input_dto.tax_info,
+            address=input_dto.address,
+        )
+
+        self.uow.member_repository.save(member)
+
+        return member
+===== application/members/dtos.py =====
+
+# application/members/dtos.py
+
+from dataclasses import dataclass
+from domain.member.value_objects import MemberRole, TaxInformation, Address
+
+
+@dataclass(frozen=True)
+class RegisterMemberUseCaseInput:
+    name: str
+    email: str
+    role: MemberRole
+    tax_info: TaxInformation
+    address: Address
+===== application/energy/__init__.py =====
+
+# application/energy/__init__.py
+
+from .record_energy import (
+    RecordEnergyUseCase,
+)
+
+from .calculate_shared import (
+    CalculateSharedEnergyUseCase,
+)
+
+from .aggregate_energy_data import (
+    AggregateEnergyDataUseCase,
+)
+
+
+__all__ = [
+    "RecordEnergyUseCase",
+    "CalculateSharedEnergyUseCase",
+    "AggregateEnergyDataUseCase",
+]
+===== application/energy/record_energy.py =====
+
+# application/energy/record_energy.py
+
+from application.energy.dtos import RecordEnergyRequest
+
+from domain.energy.entities import EnergyRecord
+from domain.energy.events import EnergyRecorded
+from domain.energy.value_objects import EnergyQuantity
+
+
+
+class RecordEnergyUseCase:
+
+
+    def __init__(
+        self,
+        repository,
+        uow,
+        publisher,
+    ):
+
+        self.repository = repository
+        self.uow = uow
+        self.publisher = publisher
+
+
+
+    def execute(
+        self,
+        request: RecordEnergyRequest,
+    ):
+
+        record = EnergyRecord.create(
+            asset_id=request.asset_id,
+            timestamp=request.timestamp,
+            production=EnergyQuantity(
+                float(request.production_kwh)
+            ),
+            consumption=EnergyQuantity(
+                float(request.consumption_kwh)
+            ),
+        )
+
+
+        with self.uow:
+
+            self.repository.save(record)
+
+
+            self.publisher.publish(
+                [
+                    EnergyRecorded(
+                        record.id,
+                        record.asset_id
+                    )
+                ]
+            )
+
+
+        return record
+===== application/energy/calculate_shared.py =====
+
+# application/energy/calculate_shared.py
+
+from application.energy.dtos import (
+    CalculateSharedEnergyRequest,
+)
+
+from domain.energy.aggregation_service import (
+    EnergyAggregationService,
+)
+
+
+
+class CalculateSharedEnergyUseCase:
+
+
+    def __init__(
+        self,
+        repository,
+        service=None,
+    ):
+
+        self.repository = repository
+
+        self.service = (
+            service
+            or EnergyAggregationService()
+        )
+
+
+
+    def execute(
+        self,
+        request: CalculateSharedEnergyRequest,
+    ):
+
+
+        records = self.repository.get_window(
+            request.start,
+            request.end
+        )
+
+
+        return self.service.shared_energy(
+            records
+        )
+===== application/energy/validate_energy_batch.py =====
+
+# application/energy/validate_energy_batch.py
+
+from application.energy.dtos import ValidateEnergyBatchRequest
+
+
+class ValidateEnergyBatch:
+
+
+    def __init__(
+        self,
+        batch_repository,
+        policy
+    ):
+        self.batch_repository = batch_repository
+        self.policy = policy
+
+
+    def execute(
+        self,
+        request
+    ):
+
+        batch = self.batch_repository.get(
+            request.batch_id
+        )
+
+
+        self.policy.validate(batch)
+
+
+        batch.validate()
+
+
+        self.batch_repository.save(batch)
+
+
+        return batch
+===== application/energy/aggregate_energy_data.py =====
+
+# application/energy/aggregate_energy_data.py
+
+from dataclasses import dataclass
+
+from application.common.use_case import UseCase
+
+from domain.energy.aggregation_service import (
+    EnergyAggregationService,
+)
+
+
+@dataclass(frozen=True)
+class AggregateEnergyDataRequest:
+
+    batch_id: str
+
+
+
+@dataclass(frozen=True)
+class AggregateEnergyDataResponse:
+
+    total_energy: object
+
+
+
+class AggregateEnergyDataUseCase(
+    UseCase[
+        AggregateEnergyDataRequest,
+        AggregateEnergyDataResponse,
+    ]
+):
+
+
+    def __init__(
+        self,
+        uow,
+        aggregation_service,
+    ):
+
+        super().__init__(uow)
+
+        self.service = aggregation_service
+
+
+
+    def _execute(
+        self,
+        request,
+    ):
+
+        records = (
+            self.uow.energy_repository
+            .get_batch_records(
+                request.batch_id
+            )
+        )
+
+
+        total = (
+            self.service.total(records)
+        )
+
+
+        return AggregateEnergyDataResponse(
+            total
+        )
+===== application/energy/retry_failed_batch.py =====
+
+# application/energy/retry_failed_batch.py
+
+from application.energy.dtos import RetryFailedBatchRequest
+
+
+class RetryFailedBatch:
+
+
+    def __init__(
+        self,
+        repository
+    ):
+        self.repository = repository
+
+
+    def execute(
+        self,
+        request: RetryFailedBatchRequest
+    ):
+
+        batch = self.repository.get(
+            request.batch_id
+        )
+
+
+        batch.retry()
+
+
+        self.repository.save(batch)
+
+
+        return batch
+===== application/energy/dtos.py =====
+
+# application/energy/dtos.py
+
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+
+
+
+@dataclass(frozen=True)
+class RecordEnergyRequest:
+
+    asset_id: str
+    timestamp: datetime
+    production_kwh: Decimal
+    consumption_kwh: Decimal
+
+
+
+@dataclass(frozen=True)
+class CalculateSharedEnergyRequest:
+
+    start: datetime
+    end: datetime
+
+
+
+@dataclass(frozen=True)
+class ValidateEnergyBatchRequest:
+
+    batch_id: str
+===== application/incentives/__init__.py =====
+
+
+===== application/incentives/distribute.py =====
+
+# application/incentives/distribute.py
+===== application/__init__.py =====
+
+
+===== application/common/use_case.py =====
+
+# application/common/use_case.py
+
+from typing import Generic, TypeVar
+
+from domain.shared.unit_of_work import UnitOfWork
+
+
+Request = TypeVar("Request")
+Response = TypeVar("Response")
+
+
+class UseCase(Generic[Request, Response]):
+
+    def __init__(self, uow: UnitOfWork):
+        self.uow = uow
+
+
+    def execute(
+        self,
+        request: Request,
+    ) -> Response:
+
+        with self.uow:
+
+            result = self._execute(request)
+
+            events = self._collect_events(result)
+
+            if events:
+                self.uow.collect(events)
+
+            return result
+
+
+    def _execute(
+        self,
+        request: Request,
+    ) -> Response:
+        raise NotImplementedError
+
+
+    def _collect_events(
+        self,
+        result,
+    ):
+
+        if hasattr(result, "pull_events"):
+            return result.pull_events()
+
+        return []

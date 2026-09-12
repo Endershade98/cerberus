@@ -32,7 +32,11 @@ def test_activate_member_collects_events_into_uow():
     repo.save.assert_called_once_with(member)
 
     # FIX: ora eventi finiscono nell'UoW
-    uow.collect.assert_called_once_with(["event1", "event2"])
+    assert uow.collect.called
+    assert uow.collect.call_args.args[0] == [
+        "event1",
+        "event2",
+    ]
     print(uow.collect.call_args_list)
 
     assert result == member

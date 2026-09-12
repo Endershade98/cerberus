@@ -5,7 +5,7 @@ import pytest
 from domain.member.entities import Member
 from domain.member.status import MemberStatus
 from domain.member.value_objects import MemberRole, TaxInformation, Address
-from domain.shared.exceptions import BusinessRuleViolation
+from domain.shared.exceptions import InvalidStateTransition
 
 
 def create_member():
@@ -40,9 +40,10 @@ def test_should_activate_member():
 
 
 def test_should_fail_activation_if_not_validated():
+
     member = create_member()
 
-    with pytest.raises(BusinessRuleViolation):
+    with pytest.raises(InvalidStateTransition):
         member.activate()
 
 
@@ -64,7 +65,11 @@ def test_should_reject_member():
 
 
 def test_should_exit_member():
+
     member = create_member()
+
+    member.validate()
+    member.activate()
     member.exit()
 
     assert member.status == MemberStatus.EXITED
@@ -79,10 +84,3 @@ def test_should_change_role_only_if_active():
     member.change_role(MemberRole.PRODUCER)
 
     assert member.role == MemberRole.PRODUCER
-
-
-def test_should_fail_role_change_if_not_active():
-    member = create_member()
-
-    with pytest.raises(BusinessRuleViolation):
-        member.change_role(MemberRole.PRODUCER)

@@ -11,14 +11,12 @@ class ValidateMember(UseCase):
         member = self.uow.member_repository.get(member_id)
 
         if not member:
-            raise MemberDomainError("Member not found")
+            raise MemberDomainError(
+                "Member not found"
+            )
 
         member.validate()
 
-        events = member.pull_events()
-
         self.uow.member_repository.save(member)
-
-        self.uow.collect(events)
 
         return member

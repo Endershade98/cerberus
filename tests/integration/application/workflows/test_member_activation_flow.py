@@ -31,7 +31,8 @@ def test_activation_flow(uow):
 
     member.validate()
 
-    uow.member_repository.save(member)
+    with uow:
+        uow.member_repository.save(member)
 
     use_case = ActivateMember(uow)
 

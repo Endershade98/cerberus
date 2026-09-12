@@ -69,9 +69,13 @@ def test_should_emit_reject_event():
 
 
 def test_should_emit_exit_event():
+
     member = create_member()
 
+    member.validate()
+    member.activate()
     member.exit()
 
     events = member.pull_events()
+
     assert isinstance(events[-1], MemberExited)
