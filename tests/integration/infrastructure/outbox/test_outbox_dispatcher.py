@@ -3,7 +3,7 @@
 import pytest
 from dataclasses import dataclass
 
-from infrastructure.django_app.outbox.dispatcher import OutboxDispatcher
+from src.infrastructure.django_app.outbox.dispatcher import OutboxDispatcher
 
 
 @dataclass

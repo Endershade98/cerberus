@@ -1,7 +1,7 @@
 # tests/unit/application/members/test_activate_member.py
 
 from unittest.mock import Mock
-from application.members.activate_member import ActivateMember
+from src.application.members.activate_member import ActivateMember
 
 
 def test_activate_member_collects_events_into_uow():

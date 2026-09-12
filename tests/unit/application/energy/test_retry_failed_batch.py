@@ -1,6 +1,6 @@
 # tests/unit/application/energy/test_retry_failed_batch.py
 
-from application.energy.retry_failed_batch import (
+from src.application.energy.retry_failed_batch import (
     RetryFailedBatchUseCase,
 )
 

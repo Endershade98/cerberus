@@ -2,8 +2,8 @@
 
 import pytest
 
-from domain.energy.status import EnergyStateMachine, EnergyStatus
-from domain.shared.exceptions import InvalidStateTransition
+from src.domain.energy.status import EnergyStateMachine, EnergyStatus
+from src.domain.shared.exceptions import InvalidStateTransition
 
 
 def test_valid_transition():

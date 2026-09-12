@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from domain.shared.domain_event import DomainEvent
-from infrastructure.django_app.outbox.repository import OutboxRepository
+from src.domain.shared.domain_event import DomainEvent
+from src.infrastructure.django_app.outbox.repository import OutboxRepository
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 # tests/support/fake_publisher.py
 
-from domain.shared.event_publisher import EventPublisher
+from src.domain.shared.event_publisher import EventPublisher
 
 
 class FakePublisher(EventPublisher):

@@ -1,7 +1,7 @@
 # tests/unit/domain/member/test_member_events.py
 
-from domain.member.entities import Member
-from domain.member.events import (
+from src.domain.member.entities import Member
+from src.domain.member.events import (
     MemberRegistered,
     MemberValidated,
     MemberActivated,
@@ -9,7 +9,7 @@ from domain.member.events import (
     MemberRejected,
     MemberExited,
 )
-from domain.member.value_objects import MemberRole, TaxInformation, Address
+from src.domain.member.value_objects import MemberRole, TaxInformation, Address
 
 
 def create_member():

@@ -3,7 +3,7 @@
 import pytest
 from decimal import Decimal
 
-from domain.shared.value_objects_extra import (
+from src.domain.shared.value_objects_extra import (
     Percentage,
     PodCode,
     IncentiveAmount,

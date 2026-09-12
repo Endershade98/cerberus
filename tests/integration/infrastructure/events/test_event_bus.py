@@ -1,6 +1,6 @@
 # tests/integration/infrastructure/events/test_event_bus.py
 
-from infrastructure.django_app.events.bus import EventBus
+from src.infrastructure.django_app.events.bus import EventBus
 
 
 class DummyEvent:

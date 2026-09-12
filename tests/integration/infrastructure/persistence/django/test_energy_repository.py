@@ -3,8 +3,8 @@
 import pytest
 from uuid import uuid4
 
-from domain.energy.entities import EnergyRecord
-from infrastructure.django_app.persistence.django.repositories.energy_repository import DjangoEnergyRepository
+from src.domain.energy.entities import EnergyRecord
+from src.infrastructure.django_app.persistence.django.repositories.energy_repository import DjangoEnergyRepository
 
 
 @pytest.mark.django_db

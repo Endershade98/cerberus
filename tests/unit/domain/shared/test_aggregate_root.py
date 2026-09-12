@@ -1,7 +1,7 @@
 # tests/unit/domain/shared/test_aggregate_root.py
 
-from domain.shared.aggregate_root import AggregateRoot
-from domain.shared.domain_event import DomainEvent
+from src.domain.shared.aggregate_root import AggregateRoot
+from src.domain.shared.domain_event import DomainEvent
 
 
 class FakeEvent(DomainEvent):

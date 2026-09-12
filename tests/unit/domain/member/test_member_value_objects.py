@@ -2,7 +2,7 @@
 
 import pytest
 
-from domain.member.value_objects import (
+from src.domain.member.value_objects import (
     MemberId,
     TaxInformation,
     Address,

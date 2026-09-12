@@ -1,7 +1,7 @@
 # tests/unit/application/energy/test_record_energy.py
 
 from unittest.mock import Mock
-from application.energy.record_energy import RecordEnergyUseCase
+from src.application.energy.record_energy import RecordEnergyUseCase
 
 
 def test_record_energy_persists_record():

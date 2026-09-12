@@ -1,6 +1,6 @@
 # tests/unit/domain/energy/test_energy_events.py
 
-from domain.energy.events import (
+from src.domain.energy.events import (
     EnergyRecorded,
     EnergyValidated,
     EnergyAggregationStarted,

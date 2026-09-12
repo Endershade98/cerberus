@@ -2,11 +2,11 @@
 
 import pytest
 
-from application.members.activate_member import ActivateMember
+from src.application.members.activate_member import ActivateMember
 
-from domain.member.entities import Member
-from domain.member.status import MemberStatus
-from domain.member.value_objects import (
+from src.domain.member.entities import Member
+from src.domain.member.status import MemberStatus
+from src.domain.member.value_objects import (
     TaxInformation,
     Address,
     MemberRole,

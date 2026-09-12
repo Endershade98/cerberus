@@ -1,7 +1,7 @@
 # tests/unit/application/members/test_suspend_member.py
 
 from unittest.mock import Mock
-from application.members.suspend_member import SuspendMember
+from src.application.members.suspend_member import SuspendMember
 
 
 def test_suspend_member_executes_and_persists():

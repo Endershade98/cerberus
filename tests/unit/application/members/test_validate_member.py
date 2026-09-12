@@ -2,8 +2,8 @@
 
 from unittest.mock import Mock
 import pytest
-from domain.member.exceptions import MemberDomainError
-from application.members.validate_member import ValidateMember
+from src.domain.member.exceptions import MemberDomainError
+from src.application.members.validate_member import ValidateMember
 
 
 def test_validate_member_success():

@@ -3,10 +3,10 @@
 import pytest
 from uuid import uuid4
 
-from domain.member.entities import Member
-from domain.member.value_objects import MemberId, TaxInformation, Address, MemberRole
-from domain.member.status import MemberStatus
-from infrastructure.django_app.persistence.django.repositories.member_repository import DjangoMemberRepository
+from src.domain.member.entities import Member
+from src.domain.member.value_objects import MemberId, TaxInformation, Address, MemberRole
+from src.domain.member.status import MemberStatus
+from src.infrastructure.django_app.persistence.django.repositories.member_repository import DjangoMemberRepository
 
 
 

@@ -2,9 +2,9 @@
 
 from unittest.mock import Mock
 
-from application.members.register_member import RegisterMember
-from application.members.dtos import RegisterMemberUseCaseInput
-from domain.member.value_objects import MemberRole, TaxInformation, Address
+from src.application.members.register_member import RegisterMember
+from src.application.members.dtos import RegisterMemberUseCaseInput
+from src.domain.member.value_objects import MemberRole, TaxInformation, Address
 
 
 def test_register_member_executes_use_case_and_saves_member():

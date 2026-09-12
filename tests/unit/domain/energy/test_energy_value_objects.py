@@ -2,7 +2,7 @@
 
 import pytest
 
-from domain.energy.value_objects import EnergyQuantity
+from src.domain.energy.value_objects import EnergyQuantity
 
 
 def test_should_create_quantity():

@@ -1,10 +1,10 @@
 # tests/unit/test_register_member.py
 
-from application.members.register_member import RegisterMember
-from application.members.dtos import RegisterMemberUseCaseInput
+from src.application.members.register_member import RegisterMember
+from src.application.members.dtos import RegisterMemberUseCaseInput
 from tests.support.fake_uow import FakeUnitOfWork
 
-from domain.member.value_objects import MemberRole, TaxInformation, Address
+from src.domain.member.value_objects import MemberRole, TaxInformation, Address
 
 
 def test_register_member_usecase():

@@ -2,7 +2,7 @@
 
 import pytest
 from django.test import Client
-from infrastructure.persistence.django.models import OutboxEvent
+from src.infrastructure.persistence.django.models import OutboxEvent
 
 
 @pytest.mark.django_db

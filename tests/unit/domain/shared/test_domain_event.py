@@ -1,6 +1,6 @@
 # tests/unit/domain/shared/test_domain_event.py
 
-from domain.shared.domain_event import DomainEvent
+from src.domain.shared.domain_event import DomainEvent
 
 
 def test_event_has_id_and_timestamp():

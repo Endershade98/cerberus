@@ -2,7 +2,7 @@
 
 import pytest
 
-from infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
+from src.infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
 
 
 

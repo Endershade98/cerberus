@@ -1,10 +1,10 @@
 # tests/integration/application/workflows/test_energy_batch_workflow.py
 
-from application.energy.validate_energy_batch import (
+from src.application.energy.validate_energy_batch import (
     ValidateEnergyBatchUseCase,
 )
 
-from application.energy.aggregate_energy_data import (
+from src.application.energy.aggregate_energy_data import (
     AggregateEnergyDataUseCase,
 )
 

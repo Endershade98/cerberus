@@ -1,6 +1,6 @@
 # tests/unit/application/energy/test_aggregate_energy_data.py
 
-from application.energy.aggregate_energy_data import (
+from src.application.energy.aggregate_energy_data import (
     AggregateEnergyDataUseCase,
 )
 

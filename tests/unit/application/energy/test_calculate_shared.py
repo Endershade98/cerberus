@@ -1,8 +1,8 @@
 # tests/unit/application/energy/test_calculate_shared.py
 
 from unittest.mock import Mock
-from application.energy.calculate_shared import CalculateSharedEnergyUseCase
-from domain.energy.entities import EnergyRecord
+from src.application.energy.calculate_shared import CalculateSharedEnergyUseCase
+from src.domain.energy.entities import EnergyRecord
 
 
 def test_calculate_shared_energy_returns_total():

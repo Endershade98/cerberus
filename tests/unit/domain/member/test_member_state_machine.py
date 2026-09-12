@@ -2,8 +2,8 @@
 
 import pytest
 
-from domain.member.status import MemberStateMachine, MemberStatus
-from domain.shared.exceptions import InvalidStateTransition
+from src.domain.member.status import MemberStateMachine, MemberStatus
+from src.domain.shared.exceptions import InvalidStateTransition
 
 
 def test_valid_transition():

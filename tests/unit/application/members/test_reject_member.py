@@ -1,7 +1,7 @@
 # tests/unit/application/members/test_reject_member.py
 
 from unittest.mock import Mock
-from application.members.reject_member import RejectMember
+from src.application.members.reject_member import RejectMember
 
 
 def test_reject_member_executes_and_persists():

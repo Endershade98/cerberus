@@ -2,10 +2,10 @@
 
 import pytest
 
-from application.members.register_member import RegisterMember
-from application.members.dtos import RegisterMemberUseCaseInput
+from src.application.members.register_member import RegisterMember
+from src.application.members.dtos import RegisterMemberUseCaseInput
 
-from domain.member.value_objects import MemberRole, TaxInformation, Address
+from src.domain.member.value_objects import MemberRole, TaxInformation, Address
 
 
 @pytest.mark.django_db

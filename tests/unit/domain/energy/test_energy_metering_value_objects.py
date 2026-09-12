@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 
 import pytest
 
-from domain.energy.value_objects import (
+from src.domain.energy.value_objects import (
     MeterReading,
     TimeWindow,
     AggregationPeriod,

@@ -3,8 +3,8 @@
 import pytest
 from uuid import uuid4
 
-from application.energy.record_energy import RecordEnergyUseCase
-from application.energy.calculate_shared import (
+from src.application.energy.record_energy import RecordEnergyUseCase
+from src.application.energy.calculate_shared import (
     CalculateSharedEnergyUseCase,
 )
 

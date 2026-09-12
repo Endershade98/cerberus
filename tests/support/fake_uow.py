@@ -1,6 +1,6 @@
 # tests/support/fake_uow.py
 
-from domain.shared.unit_of_work import UnitOfWork
+from src.domain.shared.unit_of_work import UnitOfWork
 
 
 class FakeMemberRepo:

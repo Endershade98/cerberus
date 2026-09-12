@@ -2,15 +2,15 @@
 
 import pytest
 
-from infrastructure.django_app.events.bus import EventBus
-from infrastructure.django_app.outbox.repository import OutboxRepository
-from infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
+from src.infrastructure.django_app.events.bus import EventBus
+from src.infrastructure.django_app.outbox.repository import OutboxRepository
+from src.infrastructure.django_app.persistence.django.repositories.unit_of_work import DjangoUnitOfWork
 
 from datetime import datetime, UTC
 
-from domain.shared.event_publisher import EventPublisher
-from domain.shared.time_provider import FrozenTimeProvider
-from domain.shared.id_provider import FixedIdProvider
+from src.domain.shared.event_publisher import EventPublisher
+from src.domain.shared.time_provider import FrozenTimeProvider
+from src.domain.shared.id_provider import FixedIdProvider
 
 
 

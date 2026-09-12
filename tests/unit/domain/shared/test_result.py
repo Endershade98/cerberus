@@ -1,6 +1,6 @@
 # tests/unit/domain/shared/test_result.py
 
-from domain.shared.result import Result
+from src.domain.shared.result import Result
 
 
 def test_ok():

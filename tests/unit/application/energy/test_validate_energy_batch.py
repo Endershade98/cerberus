@@ -1,6 +1,6 @@
 # tests/unit/application/energy/test_validate_energy_batch.py
 
-from application.energy.validate_energy_batch import (
+from src.application.energy.validate_energy_batch import (
     ValidateEnergyBatchUseCase,
 )
 

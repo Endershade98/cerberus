@@ -3,7 +3,7 @@
 import pytest
 from decimal import Decimal
 
-from domain.shared.value_objects import MoneyAmount
+from src.domain.shared.value_objects import MoneyAmount
 
 
 def test_should_create_money():

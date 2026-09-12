@@ -2,8 +2,8 @@
 
 import pytest
 
-from domain.energy.asset import EnergyAsset
-from domain.shared.value_objects_extra import PodCode
+from src.domain.energy.asset import EnergyAsset
+from src.domain.shared.value_objects_extra import PodCode
 
 
 

@@ -1,7 +1,7 @@
 # tests/unit/application/members/test_exit_member.py
 
 from unittest.mock import Mock
-from application.members.exit_member import ExitMember
+from src.application.members.exit_member import ExitMember
 
 
 def test_exit_member_executes_and_persists():

@@ -1,6 +1,6 @@
 # tests/unit/domain/energy/test_energy_entity.py
 
-from domain.energy.entities import EnergyRecord
+from src.domain.energy.entities import EnergyRecord
 
 
 def test_create_energy_record():

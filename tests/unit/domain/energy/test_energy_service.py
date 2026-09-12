@@ -1,7 +1,7 @@
 # tests/unit/domain/energy/test_energy_service.py
 
-from domain.energy.entities import EnergyRecord
-from domain.energy.services import EnergyDomainService
+from src.domain.energy.entities import EnergyRecord
+from src.domain.energy.services import EnergyDomainService
 
 
 def test_should_sum_energy_records():

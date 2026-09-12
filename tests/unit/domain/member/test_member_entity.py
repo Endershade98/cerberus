@@ -2,10 +2,10 @@
 
 import pytest
 
-from domain.member.entities import Member
-from domain.member.status import MemberStatus
-from domain.member.value_objects import MemberRole, TaxInformation, Address
-from domain.shared.exceptions import InvalidStateTransition
+from src.domain.member.entities import Member
+from src.domain.member.status import MemberStatus
+from src.domain.member.value_objects import MemberRole, TaxInformation, Address
+from src.domain.shared.exceptions import InvalidStateTransition
 
 
 def create_member():
