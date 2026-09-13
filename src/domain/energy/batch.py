@@ -1,80 +1,70 @@
-# domain/energy/batch.py
+# src/domain/energy/batch.py
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import datetime
 
-from src.domain.shared.aggregate_root import AggregateRoot
-from src.domain.shared.id_provider import IdProvider
-
-from src.domain.energy.status import (
-    EnergyStatus,
-    EnergyStateMachine,
-)
-
-id_provider = IdProvider()
+from domain.energy.value_objects import EnergyBatchId
+from domain.energy.status import EnergyBatchStatus
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import InvalidStateTransition
 
 
 @dataclass
 class EnergyBatch(AggregateRoot):
+    id: EnergyBatchId
+    source: str
+    period_start: datetime
+    period_end: datetime
+    received_at: datetime
+    status: EnergyBatchStatus = EnergyBatchStatus.RECEIVED
 
-    id: str = field(
-        default_factory=id_provider.generate
-    )
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
 
-    status: EnergyStatus = (
-        EnergyStatus.RECEIVED
-    )
+        if self.period_start >= self.period_end:
+            raise ValueError("Batch period is invalid.")
 
-    def _transition(
-        self,
-        target: EnergyStatus,
-    ):
+        if not self.source.strip():
+            raise ValueError("Batch source is required.")
 
-        machine = EnergyStateMachine(
-            self.status
+    @classmethod
+    def receive(
+        cls,
+        *,
+        source: str,
+        period_start: datetime,
+        period_end: datetime,
+        received_at: datetime,
+        batch_id: EnergyBatchId | None = None,
+    ) -> "EnergyBatch":
+        return cls(
+            id=batch_id or EnergyBatchId.generate(),
+            source=source.strip(),
+            period_start=period_start,
+            period_end=period_end,
+            received_at=received_at,
         )
 
-        self.status = machine.transition(
-            target
-        )
+    def validate(self) -> None:
+        self._transition_to(EnergyBatchStatus.VALIDATED)
 
-    def start_validation(self):
+    def reject(self) -> None:
+        self._transition_to(EnergyBatchStatus.REJECTED)
 
-        self._transition(
-            EnergyStatus.VALIDATING
-        )
+    def _transition_to(self, target: EnergyBatchStatus) -> None:
+        allowed = {
+            EnergyBatchStatus.RECEIVED: {
+                EnergyBatchStatus.VALIDATED,
+                EnergyBatchStatus.REJECTED,
+            },
+            EnergyBatchStatus.VALIDATED: set(),
+            EnergyBatchStatus.REJECTED: set(),
+        }
 
-    def validate(self):
+        if target not in allowed[self.status]:
+            raise InvalidStateTransition(
+                f"Cannot transition batch from "
+                f"{self.status} to {target}."
+            )
 
-        self._transition(
-            EnergyStatus.VALIDATED
-        )
-
-    def reject(self):
-
-        self._transition(
-            EnergyStatus.REJECTED
-        )
-
-    def start_aggregation(self):
-
-        self._transition(
-            EnergyStatus.AGGREGATING
-        )
-
-    def complete(self):
-
-        self._transition(
-            EnergyStatus.COMPLETED
-        )
-
-    def fail(self):
-
-        self._transition(
-            EnergyStatus.FAILED
-        )
-
-    def retry(self):
-
-        self._transition(
-            EnergyStatus.VALIDATING
-        )
+        self.status = target

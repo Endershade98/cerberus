@@ -1,7 +1,7 @@
 # application/members/dtos.py
 
 from dataclasses import dataclass
-from src.domain.member.value_objects import MemberRole, TaxInformation, Address
+from domain.membership.value_objects import MemberRole, TaxInformation, Address
 
 
 @dataclass(frozen=True)

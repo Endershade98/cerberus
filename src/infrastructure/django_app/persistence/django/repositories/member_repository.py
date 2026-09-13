@@ -1,9 +1,9 @@
 # infrastructure/django_app/persistence/django/repositories/member_repository.py
 
-from src.domain.member.entities import Member
-from src.domain.member.repository import MemberRepository
-from src.domain.member.value_objects import MemberId, TaxInformation, Address, MemberRole
-from src.domain.member.status import MemberStatus
+from domain.membership.entities import Member
+from domain.membership.repositories import MemberRepository
+from domain.membership.value_objects import MemberId, TaxInformation, Address, MemberRole
+from domain.membership.status import MemberStatus
 from src.infrastructure.persistence.django.models import MemberModel
 
 

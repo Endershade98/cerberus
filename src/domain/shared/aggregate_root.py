@@ -1,23 +1,23 @@
-# domain/shared/aggregate_root.py
+# src/domain/shared/aggregate_root.py
 
-from dataclasses import dataclass, field
-from typing import List
-from uuid import UUID, uuid4
-
-from src.domain.shared.domain_event import DomainEvent
+from domain.shared.domain_event import DomainEvent
 
 
-@dataclass
 class AggregateRoot:
+    """
+    Base class for domain aggregates.
 
-    internal_id: UUID = field(default_factory=uuid4, init=False)
+    Business identity belongs to the concrete aggregate.
+    This class only manages domain events.
+    """
 
-    _events: List[DomainEvent] = field(default_factory=list, init=False, repr=False)
+    def __init__(self) -> None:
+        self._events: list[DomainEvent] = []
 
     def add_event(self, event: DomainEvent) -> None:
         self._events.append(event)
 
     def pull_events(self) -> list[DomainEvent]:
-        events = list(self._events)
+        events = self._events.copy()
         self._events.clear()
         return events

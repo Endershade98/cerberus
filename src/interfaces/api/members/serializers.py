@@ -3,7 +3,7 @@
 from rest_framework import serializers
 
 from src.application.members.dtos import RegisterMemberUseCaseInput
-from src.domain.member.value_objects import MemberRole, TaxInformation, Address
+from domain.membership.value_objects import MemberRole, TaxInformation, Address
 
 
 class RegisterMemberSerializer(serializers.Serializer):

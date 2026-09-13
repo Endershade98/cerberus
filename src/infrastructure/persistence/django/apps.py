@@ -1,9 +1,8 @@
-# infrastructure/persistence/django/apps.py
+# src/infrastructure/persistence/django/apps.py
 
 from django.apps import AppConfig
 
 
 class PersistenceConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "infrastructure.persistence.django"
-    label = "persistence"
+    name = "src.infrastructure.persistence.django"

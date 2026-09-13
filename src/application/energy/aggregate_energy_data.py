@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from src.application.common.use_case import UseCase
 
-from src.domain.energy.aggregation_service import (
+from domain.energy.aggregation_service import (
     EnergyAggregationService,
 )
 

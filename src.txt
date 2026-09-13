@@ -1,0 +1,1660 @@
+
+===== src/domain/energy/__init__.py =====
+
+
+===== src/domain/energy/status.py =====
+
+# src/domain/energy/status.py
+
+from enum import StrEnum
+
+
+class EnergyBatchStatus(StrEnum):
+    RECEIVED = "RECEIVED"
+    VALIDATED = "VALIDATED"
+    REJECTED = "REJECTED"
+===== src/domain/energy/value_objects.py =====
+
+# src/domain/energy/value_objects.py
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import StrEnum
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class EnergyAssetId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "EnergyAssetId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class EnergyDeviceId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "EnergyDeviceId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class EnergyReadingId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "EnergyReadingId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class EnergyBatchId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "EnergyBatchId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class PodCode:
+    value: str
+
+    def __post_init__(self) -> None:
+        value = self.value.strip().upper()
+
+        if len(value) < 5:
+            raise ValueError("POD code is too short.")
+
+        object.__setattr__(self, "value", value)
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class EnergyInterval:
+    start: datetime
+    end: datetime
+
+    def __post_init__(self) -> None:
+        if self.start.tzinfo is None or self.end.tzinfo is None:
+            raise ValueError("Energy interval must use timezone-aware datetimes.")
+
+        if self.start >= self.end:
+            raise ValueError("Energy interval start must precede end.")
+
+    def contains(self, timestamp: datetime) -> bool:
+        return self.start <= timestamp < self.end
+
+
+class EnergyDirection(StrEnum):
+    PRODUCTION = "PRODUCTION"
+    CONSUMPTION = "CONSUMPTION"
+
+
+class ReadingQuality(StrEnum):
+    MEASURED = "MEASURED"
+    ESTIMATED = "ESTIMATED"
+    CORRECTED = "CORRECTED"
+
+
+class EnergyAssetType(StrEnum):
+    PRODUCTION = "PRODUCTION"
+    CONSUMPTION = "CONSUMPTION"
+    PROSUMER = "PROSUMER"
+
+
+class EnergyAssetStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class EnergyDeviceStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+===== src/domain/energy/asset.py =====
+
+# src/domain/energy/asset.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.energy.value_objects import (
+    EnergyAssetId,
+    EnergyAssetStatus,
+    EnergyAssetType,
+    PodCode,
+)
+from domain.membership.value_objects import MemberId
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass
+class EnergyAsset(AggregateRoot):
+    id: EnergyAssetId
+    cer_id: CerId
+    owner_member_id: MemberId
+    pod_code: PodCode
+    asset_type: EnergyAssetType
+    status: EnergyAssetStatus = EnergyAssetStatus.ACTIVE
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        cer_id: CerId,
+        owner_member_id: MemberId,
+        pod_code: PodCode,
+        asset_type: EnergyAssetType,
+        asset_id: EnergyAssetId | None = None,
+    ) -> "EnergyAsset":
+        return cls(
+            id=asset_id or EnergyAssetId.generate(),
+            cer_id=cer_id,
+            owner_member_id=owner_member_id,
+            pod_code=pod_code,
+            asset_type=asset_type,
+        )
+
+    def change_owner(self, member_id: MemberId) -> None:
+        if self.status != EnergyAssetStatus.ACTIVE:
+            raise BusinessRuleViolation(
+                "Only active energy assets can change owner."
+            )
+
+        self.owner_member_id = member_id
+
+    def deactivate(self) -> None:
+        self.status = EnergyAssetStatus.INACTIVE
+
+    def activate(self) -> None:
+        self.status = EnergyAssetStatus.ACTIVE
+===== src/domain/energy/events.py =====
+
+# src/domain/energy/events.py
+
+from dataclasses import dataclass
+
+from domain.energy.value_objects import (
+    EnergyBatchId,
+    EnergyReadingId,
+)
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass(frozen=True, kw_only=True)
+class EnergyReadingRecorded(DomainEvent):
+    reading_id: EnergyReadingId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class EnergyBatchReceived(DomainEvent):
+    batch_id: EnergyBatchId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class EnergyBatchValidated(DomainEvent):
+    batch_id: EnergyBatchId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class EnergyBatchRejected(DomainEvent):
+    batch_id: EnergyBatchId # type: ignore[assignment]
+===== src/domain/energy/batch.py =====
+
+# src/domain/energy/batch.py
+
+from dataclasses import dataclass
+from datetime import datetime
+
+from domain.energy.value_objects import EnergyBatchId
+from domain.energy.status import EnergyBatchStatus
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import InvalidStateTransition
+
+
+@dataclass
+class EnergyBatch(AggregateRoot):
+    id: EnergyBatchId
+    source: str
+    period_start: datetime
+    period_end: datetime
+    received_at: datetime
+    status: EnergyBatchStatus = EnergyBatchStatus.RECEIVED
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+
+        if self.period_start >= self.period_end:
+            raise ValueError("Batch period is invalid.")
+
+        if not self.source.strip():
+            raise ValueError("Batch source is required.")
+
+    @classmethod
+    def receive(
+        cls,
+        *,
+        source: str,
+        period_start: datetime,
+        period_end: datetime,
+        received_at: datetime,
+        batch_id: EnergyBatchId | None = None,
+    ) -> "EnergyBatch":
+        return cls(
+            id=batch_id or EnergyBatchId.generate(),
+            source=source.strip(),
+            period_start=period_start,
+            period_end=period_end,
+            received_at=received_at,
+        )
+
+    def validate(self) -> None:
+        self._transition_to(EnergyBatchStatus.VALIDATED)
+
+    def reject(self) -> None:
+        self._transition_to(EnergyBatchStatus.REJECTED)
+
+    def _transition_to(self, target: EnergyBatchStatus) -> None:
+        allowed = {
+            EnergyBatchStatus.RECEIVED: {
+                EnergyBatchStatus.VALIDATED,
+                EnergyBatchStatus.REJECTED,
+            },
+            EnergyBatchStatus.VALIDATED: set(),
+            EnergyBatchStatus.REJECTED: set(),
+        }
+
+        if target not in allowed[self.status]:
+            raise InvalidStateTransition(
+                f"Cannot transition batch from "
+                f"{self.status} to {target}."
+            )
+
+        self.status = target
+===== src/domain/energy/exceptions.py =====
+
+# src/domain/energy/exceptions.py
+
+from domain.shared.exceptions import DomainException
+
+
+class EnergyDomainError(DomainException):
+    """Base exception for energy domain errors."""
+===== src/domain/energy/device.py =====
+
+# src/domain/energy/device.py
+
+from dataclasses import dataclass
+
+from domain.energy.value_objects import (
+    EnergyAssetId,
+    EnergyDeviceId,
+    EnergyDeviceStatus,
+)
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass
+class EnergyDevice:
+    id: EnergyDeviceId
+    asset_id: EnergyAssetId
+    provider: str
+    external_id: str
+    status: EnergyDeviceStatus = EnergyDeviceStatus.ACTIVE
+
+    def __post_init__(self) -> None:
+        if not self.provider.strip():
+            raise BusinessRuleViolation("Energy provider is required.")
+
+        if not self.external_id.strip():
+            raise BusinessRuleViolation(
+                "External device identifier is required."
+            )
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        asset_id: EnergyAssetId,
+        provider: str,
+        external_id: str,
+        device_id: EnergyDeviceId | None = None,
+    ) -> "EnergyDevice":
+        return cls(
+            id=device_id or EnergyDeviceId.generate(),
+            asset_id=asset_id,
+            provider=provider.strip(),
+            external_id=external_id.strip(),
+        )
+
+    def deactivate(self) -> None:
+        self.status = EnergyDeviceStatus.INACTIVE
+
+    def activate(self) -> None:
+        self.status = EnergyDeviceStatus.ACTIVE
+===== src/domain/energy/reading.py =====
+
+# src/domain/energy/reading.py
+
+from dataclasses import dataclass
+
+from domain.energy.value_objects import (
+    EnergyDeviceId,
+    EnergyDirection,
+    EnergyInterval,
+    EnergyReadingId,
+    ReadingQuality,
+)
+from domain.shared.energy import EnergyQuantity
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass(frozen=True)
+class EnergyReading:
+    id: EnergyReadingId
+    device_id: EnergyDeviceId
+    interval: EnergyInterval
+    quantity: EnergyQuantity
+    direction: EnergyDirection
+    quality: ReadingQuality = ReadingQuality.MEASURED
+
+    @classmethod
+    def record(
+        cls,
+        *,
+        device_id: EnergyDeviceId,
+        interval: EnergyInterval,
+        quantity: EnergyQuantity,
+        direction: EnergyDirection,
+        quality: ReadingQuality = ReadingQuality.MEASURED,
+        reading_id: EnergyReadingId | None = None,
+    ) -> "EnergyReading":
+        if quantity.value < 0:
+            raise BusinessRuleViolation(
+                "Energy reading quantity cannot be negative."
+            )
+
+        return cls(
+            id=reading_id or EnergyReadingId.generate(),
+            device_id=device_id,
+            interval=interval,
+            quantity=quantity,
+            direction=direction,
+            quality=quality,
+        )
+===== src/domain/energy/repositories.py =====
+
+# src/domain/energy/repositories.py
+
+from abc import ABC, abstractmethod
+
+from domain.energy.asset import EnergyAsset
+from domain.energy.batch import EnergyBatch
+from domain.energy.device import EnergyDevice
+from domain.energy.reading import EnergyReading
+from domain.energy.value_objects import (
+    EnergyAssetId,
+    EnergyDeviceId,
+    EnergyReadingId,
+)
+from domain.membership.value_objects import MemberId
+
+
+class EnergyAssetRepository(ABC):
+
+    @abstractmethod
+    def save(self, asset: EnergyAsset) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, asset_id: EnergyAssetId) -> EnergyAsset | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_by_owner(
+        self,
+        member_id: MemberId,
+    ) -> list[EnergyAsset]:
+        raise NotImplementedError
+
+
+class EnergyDeviceRepository(ABC):
+
+    @abstractmethod
+    def save(self, device: EnergyDevice) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, device_id: EnergyDeviceId) -> EnergyDevice | None:
+        raise NotImplementedError
+
+
+class EnergyReadingRepository(ABC):
+
+    @abstractmethod
+    def save(self, reading: EnergyReading) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, reading_id: EnergyReadingId) -> EnergyReading | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_by_device_and_interval(
+        self,
+        device_id: EnergyDeviceId,
+        start,
+        end,
+    ) -> list[EnergyReading]:
+        raise NotImplementedError
+
+
+class EnergyBatchRepository(ABC):
+
+    @abstractmethod
+    def save(self, batch: EnergyBatch) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, batch_id) -> EnergyBatch | None:
+        raise NotImplementedError
+===== src/domain/incentive/__init__.py =====
+
+
+===== src/domain/incentive/value_objects.py =====
+
+# src/domain/incentive/value_objects.py
+
+from dataclasses import dataclass
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+from domain.shared.energy import EnergyQuantity
+from domain.shared.money import Currency, EUR, MoneyAmount
+
+
+@dataclass(frozen=True)
+class IncentiveId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "IncentiveId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class IncentiveRate:
+    value: Decimal
+    currency: Currency = EUR
+
+    def __post_init__(self) -> None:
+        value = Decimal(str(self.value))
+
+        if value < Decimal("0"):
+            raise ValueError("Incentive rate cannot be negative.")
+
+        object.__setattr__(self, "value", value)
+
+    def calculate(
+        self,
+        energy: EnergyQuantity,
+    ) -> MoneyAmount:
+        return MoneyAmount(
+            energy.value * self.value,
+            self.currency,
+        )
+===== src/domain/incentive/events.py =====
+
+# src/domain/incentive/events.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.incentive.value_objects import IncentiveId, IncentiveRate
+from domain.membership.value_objects import MemberId
+from domain.shared.domain_event import DomainEvent
+from domain.shared.energy import EnergyQuantity
+from domain.shared.money import MoneyAmount
+
+
+@dataclass(frozen=True, kw_only=True)
+class IncentiveCalculated(DomainEvent):
+    incentive_id: IncentiveId # type: ignore[assignment]
+    cer_id: CerId # type: ignore[assignment]
+    member_id: MemberId # type: ignore[assignment]
+    eligible_energy: EnergyQuantity # type: ignore[assignment]
+    rate: IncentiveRate # type: ignore[assignment]
+    amount: MoneyAmount # type: ignore[assignment]
+===== src/domain/incentive/exceptions.py =====
+
+# src/domain/incentive/exceptions.py
+
+from domain.shared.exceptions import DomainException
+
+
+class IncentiveDomainError(DomainException):
+    """Base exception for incentive domain errors."""
+===== src/domain/incentive/calculator.py =====
+
+# src/domain/incentive/calculator.py
+
+from domain.incentive.value_objects import IncentiveRate
+from domain.shared.energy import EnergyQuantity
+from domain.shared.money import MoneyAmount
+
+
+class IncentiveCalculator:
+
+    def calculate(
+        self,
+        *,
+        eligible_energy: EnergyQuantity,
+        rate: IncentiveRate,
+    ) -> MoneyAmount:
+        return rate.calculate(eligible_energy)
+===== src/domain/incentive/incentive.py =====
+
+# src/domain/incentive/incentive.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.incentive.events import IncentiveCalculated
+from domain.incentive.value_objects import IncentiveId, IncentiveRate
+from domain.membership.value_objects import MemberId
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.energy import EnergyQuantity
+from domain.shared.money import MoneyAmount
+from domain.shared_energy.value_objects import (
+    CalculationPeriod,
+    SharedEnergyId,
+)
+
+
+@dataclass(frozen=True)
+class SharedEnergyReference:
+    shared_energy_id: SharedEnergyId
+
+
+@dataclass
+class Incentive(AggregateRoot):
+    id: IncentiveId
+    cer_id: CerId
+    member_id: MemberId
+    reference_period: CalculationPeriod
+    shared_energy_reference: SharedEnergyReference
+    eligible_energy: EnergyQuantity
+    rate: IncentiveRate
+    amount: MoneyAmount
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+
+    @classmethod
+    def calculate(
+        cls,
+        *,
+        cer_id: CerId,
+        member_id: MemberId,
+        reference_period: CalculationPeriod,
+        shared_energy_reference: SharedEnergyReference,
+        eligible_energy: EnergyQuantity,
+        rate: IncentiveRate,
+        incentive_id: IncentiveId | None = None,
+    ) -> "Incentive":
+        amount = rate.calculate(eligible_energy)
+
+        aggregate = cls(
+            id=incentive_id or IncentiveId.generate(),
+            cer_id=cer_id,
+            member_id=member_id,
+            reference_period=reference_period,
+            shared_energy_reference=shared_energy_reference,
+            eligible_energy=eligible_energy,
+            rate=rate,
+            amount=amount,
+        )
+
+        aggregate.add_event(
+            IncentiveCalculated(
+                incentive_id=aggregate.id,
+                cer_id=aggregate.cer_id,
+                member_id=aggregate.member_id,
+                eligible_energy=aggregate.eligible_energy,
+                rate=aggregate.rate,
+                amount=aggregate.amount,
+            )
+        )
+
+        return aggregate
+===== src/domain/incentive/repositories.py =====
+
+# src/domain/incentive/repositories.py
+
+from abc import ABC, abstractmethod
+
+from domain.incentive.incentive import Incentive
+from domain.incentive.value_objects import IncentiveId
+
+
+class IncentiveRepository(ABC):
+
+    @abstractmethod
+    def save(self, incentive: Incentive) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, incentive_id: IncentiveId) -> Incentive | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_for_member_period(
+        self,
+        member_id,
+        reference_period,
+    ) -> Incentive | None:
+        raise NotImplementedError
+===== src/domain/__init__.py =====
+
+
+===== src/domain/shared/aggregate_root.py =====
+
+# src/domain/shared/aggregate_root.py
+
+from domain.shared.domain_event import DomainEvent
+
+
+class AggregateRoot:
+    """
+    Base class for domain aggregates.
+
+    Business identity belongs to the concrete aggregate.
+    This class only manages domain events.
+    """
+
+    def __init__(self) -> None:
+        self._events: list[DomainEvent] = []
+
+    def add_event(self, event: DomainEvent) -> None:
+        self._events.append(event)
+
+    def pull_events(self) -> list[DomainEvent]:
+        events = self._events.copy()
+        self._events.clear()
+        return events
+===== src/domain/shared/exceptions.py =====
+
+# src/domain/shared/exceptions.py
+
+class DomainException(Exception):
+    """Base exception for domain errors."""
+
+
+class BusinessRuleViolation(DomainException):
+    """Raised when a domain business rule is violated."""
+
+
+class InvalidStateTransition(DomainException):
+    """Raised when an aggregate cannot perform a state transition."""
+===== src/domain/shared/domain_event.py =====
+
+# src/domain/shared/domain_event.py
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    event_id: UUID = field(default_factory=uuid4)
+    occurred_on: datetime = field(
+        default_factory=lambda: datetime.now(UTC)
+    )
+===== src/domain/shared/__init__.py =====
+
+
+===== src/domain/shared/money.py =====
+
+# src/domain/shared/money.py
+
+from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
+
+
+@dataclass(frozen=True)
+class Currency:
+    code: str
+
+    def __post_init__(self) -> None:
+        normalized = self.code.strip().upper()
+
+        if len(normalized) != 3:
+            raise ValueError("Currency code must contain exactly 3 characters.")
+
+        object.__setattr__(self, "code", normalized)
+
+
+EUR = Currency("EUR")
+
+
+@dataclass(frozen=True)
+class MoneyAmount:
+    value: Decimal
+    currency: Currency = EUR
+
+    def __post_init__(self) -> None:
+        value = Decimal(str(self.value))
+
+        if value < Decimal("0"):
+            raise ValueError("Money amount cannot be negative.")
+
+        object.__setattr__(self, "value", value.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        ))
+
+    @classmethod
+    def zero(cls, currency: Currency = EUR) -> "MoneyAmount":
+        return cls(Decimal("0"), currency)
+
+    def add(self, other: "MoneyAmount") -> "MoneyAmount":
+        self._ensure_same_currency(other)
+
+        return MoneyAmount(
+            self.value + other.value,
+            self.currency,
+        )
+
+    def _ensure_same_currency(self, other: "MoneyAmount") -> None:
+        if self.currency != other.currency:
+            raise ValueError("Cannot operate on different currencies.")
+===== src/domain/shared/energy.py =====
+
+# src/domain/shared/energy.py
+
+from dataclasses import dataclass
+from decimal import Decimal
+
+
+@dataclass(frozen=True)
+class EnergyQuantity:
+    value: Decimal
+
+    def __post_init__(self) -> None:
+        value = Decimal(str(self.value))
+
+        if value < Decimal("0"):
+            raise ValueError("Energy quantity cannot be negative.")
+
+        object.__setattr__(self, "value", value)
+
+    @classmethod
+    def zero(cls) -> "EnergyQuantity":
+        return cls(Decimal("0"))
+
+    def add(self, other: "EnergyQuantity") -> "EnergyQuantity":
+        return EnergyQuantity(self.value + other.value)
+
+    def subtract(self, other: "EnergyQuantity") -> "EnergyQuantity":
+        result = self.value - other.value
+
+        if result < Decimal("0"):
+            raise ValueError("Energy quantity cannot become negative.")
+
+        return EnergyQuantity(result)
+
+    def min(self, other: "EnergyQuantity") -> "EnergyQuantity":
+        return EnergyQuantity(min(self.value, other.value))
+===== src/domain/community/__init__.py =====
+
+
+===== src/domain/community/value_objects.py =====
+
+# src/domain/community/value_objects.py
+
+from dataclasses import dataclass
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class CerId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "CerId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class CommunityId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "CommunityId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+===== src/domain/community/status.py =====
+
+# src/domain/community/status.py
+
+from enum import StrEnum
+
+from domain.shared.exceptions import InvalidStateTransition
+
+
+class CerStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+    CLOSED = "CLOSED"
+
+
+_ALLOWED_TRANSITIONS: dict[CerStatus, set[CerStatus]] = {
+    CerStatus.DRAFT: {
+        CerStatus.ACTIVE,
+    },
+    CerStatus.ACTIVE: {
+        CerStatus.SUSPENDED,
+        CerStatus.CLOSED,
+    },
+    CerStatus.SUSPENDED: {
+        CerStatus.ACTIVE,
+        CerStatus.CLOSED,
+    },
+    CerStatus.CLOSED: set(),
+}
+
+
+class CerStateMachine:
+    def __init__(self, status: CerStatus) -> None:
+        self.current_status = status
+
+    def transition(self, target: CerStatus) -> None:
+        allowed = _ALLOWED_TRANSITIONS[self.current_status]
+
+        if target not in allowed:
+            raise InvalidStateTransition(
+                f"Cannot transition from "
+                f"{self.current_status} to {target}."
+            )
+
+        self.current_status = target
+===== src/domain/community/events.py =====
+
+# src/domain/community/events.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass(frozen=True, kw_only=True)
+class CerCreated(DomainEvent):
+    cer_id: CerId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class CerActivated(DomainEvent):
+    cer_id: CerId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class CerSuspended(DomainEvent):
+    cer_id: CerId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class CerClosed(DomainEvent):
+    cer_id: CerId  # type: ignore[assignment]
+===== src/domain/community/exceptions.py =====
+
+# src/domain/community/exceptions.py
+
+from domain.shared.exceptions import DomainException
+
+
+class CerDomainError(DomainException):
+    """Base exception for CER domain errors."""
+===== src/domain/community/entities.py =====
+
+# src/domain/community/entities.py
+
+from dataclasses import dataclass, field
+
+from domain.community.events import (
+    CerActivated,
+    CerClosed,
+    CerCreated,
+    CerSuspended,
+)
+from domain.community.status import CerStateMachine, CerStatus
+from domain.community.value_objects import CerId
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass
+class Cer(AggregateRoot):
+    id: CerId
+    name: str
+    status: CerStatus = CerStatus.DRAFT
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+
+        if not self.name.strip():
+            raise BusinessRuleViolation("CER name is required.")
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        cer_id: CerId | None = None,
+    ) -> "Cer":
+        cer = cls(
+            id=cer_id or CerId.generate(),
+            name=name.strip(),
+            status=CerStatus.DRAFT,
+        )
+
+        cer.add_event(CerCreated(cer_id=cer.id))
+
+        return cer
+
+    def activate(self) -> None:
+        self._transition_to(CerStatus.ACTIVE)
+        self.add_event(CerActivated(cer_id=self.id))
+
+    def suspend(self) -> None:
+        self._transition_to(CerStatus.SUSPENDED)
+        self.add_event(CerSuspended(cer_id=self.id))
+
+    def close(self) -> None:
+        self._transition_to(CerStatus.CLOSED)
+        self.add_event(CerClosed(cer_id=self.id))
+
+    def _transition_to(self, target: CerStatus) -> None:
+        state_machine = CerStateMachine(self.status)
+        state_machine.transition(target)
+        self.status = state_machine.current_status
+===== src/domain/community/repositories.py =====
+
+# src/domain/community/repositories.py
+
+from abc import ABC, abstractmethod
+
+from domain.community.entities import Cer
+from domain.community.value_objects import CerId
+
+
+class CerRepository(ABC):
+
+    @abstractmethod
+    def save(self, cer: Cer) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, cer_id: CerId) -> Cer | None:
+        raise NotImplementedError
+===== src/domain/membership/__init__.py =====
+
+
+===== src/domain/membership/events.py =====
+
+# domain/member/events.py
+
+from dataclasses import dataclass
+
+from domain.membership.value_objects import MemberId
+from domain.shared.domain_event import DomainEvent
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberRegistered(DomainEvent):
+    member_id: MemberId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberValidated(DomainEvent):
+    member_id: MemberId # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberActivated(DomainEvent):
+    member_id: MemberId # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberSuspended(DomainEvent):
+    member_id: MemberId  # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberRejected(DomainEvent):
+    member_id: MemberId # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberExited(DomainEvent):
+    member_id: MemberId # type: ignore[assignment]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MemberRoleChanged(DomainEvent):
+    member_id: MemberId # type: ignore[assignment]
+===== src/domain/membership/entities.py =====
+
+# src/domain/membership/entities.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.membership.events import (
+    MemberActivated,
+    MemberExited,
+    MemberRejected,
+    MemberRegistered,
+    MemberRoleChanged,
+    MemberSuspended,
+    MemberValidated,
+)
+from domain.membership.exceptions import InvalidMemberRoleChange
+from domain.membership.status import MemberStateMachine, MemberStatus
+from domain.membership.value_objects import (
+    Address,
+    EmailAddress,
+    MemberId,
+    MemberRole,
+    TaxInformation,
+)
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass
+class Member(AggregateRoot):
+    id: MemberId
+    cer_id: CerId
+    name: str
+    email: EmailAddress
+    role: MemberRole
+    status: MemberStatus = MemberStatus.PENDING
+    tax_info: TaxInformation | None = None
+    address: Address | None = None
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+
+        if not self.name.strip():
+            raise BusinessRuleViolation("Member name is required.")
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        cer_id: CerId,
+        name: str,
+        email: EmailAddress | str,
+        role: MemberRole,
+        tax_info: TaxInformation | None = None,
+        address: Address | None = None,
+        member_id: MemberId | None = None,
+    ) -> "Member":
+        if isinstance(email, str):
+            email = EmailAddress(email)
+
+        member = cls(
+            id=member_id or MemberId.generate(),
+            cer_id=cer_id,
+            name=name.strip(),
+            email=email,
+            role=role,
+            status=MemberStatus.PENDING,
+            tax_info=tax_info,
+            address=address,
+        )
+
+        member.add_event(
+            MemberRegistered(member_id=member.id)
+        )
+
+        return member
+
+    def validate(self) -> None:
+        self._transition_to(MemberStatus.VALIDATED)
+        self.add_event(MemberValidated(member_id=self.id))
+
+    def activate(self) -> None:
+        if self.tax_info is None:
+            raise BusinessRuleViolation(
+                "Tax information is required before activation."
+            )
+
+        if self.address is None:
+            raise BusinessRuleViolation(
+                "Address is required before activation."
+            )
+
+        self._transition_to(MemberStatus.ACTIVE)
+        self.add_event(MemberActivated(member_id=self.id))
+
+    def suspend(self) -> None:
+        self._transition_to(MemberStatus.SUSPENDED)
+        self.add_event(MemberSuspended(member_id=self.id))
+
+    def reject(self) -> None:
+        self._transition_to(MemberStatus.REJECTED)
+        self.add_event(MemberRejected(member_id=self.id))
+
+    def exit(self) -> None:
+        self._transition_to(MemberStatus.EXITED)
+        self.add_event(MemberExited(member_id=self.id))
+
+    def change_role(self, role: MemberRole) -> None:
+        if self.status != MemberStatus.ACTIVE:
+            raise InvalidMemberRoleChange(
+                "Member role can only be changed while ACTIVE."
+            )
+
+        if self.role == role:
+            return
+
+        self.role = role
+
+        self.add_event(
+            MemberRoleChanged(member_id=self.id)
+        )
+
+    def _transition_to(self, target: MemberStatus) -> None:
+        state_machine = MemberStateMachine(self.status)
+        state_machine.transition(target)
+        self.status = state_machine.current_status
+===== src/domain/membership/status.py =====
+
+# domain/member/status.py
+
+from enum import StrEnum
+
+from domain.shared.exceptions import InvalidStateTransition
+
+
+class MemberStatus(StrEnum):
+    PENDING = "PENDING"
+    VALIDATED = "VALIDATED"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+    REJECTED = "REJECTED"
+    EXITED = "EXITED"
+
+
+_ALLOWED_TRANSITIONS: dict[MemberStatus, set[MemberStatus]] = {
+    MemberStatus.PENDING: {
+        MemberStatus.VALIDATED,
+        MemberStatus.REJECTED,
+    },
+    MemberStatus.VALIDATED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.REJECTED,
+    },
+    MemberStatus.ACTIVE: {
+        MemberStatus.SUSPENDED,
+        MemberStatus.EXITED,
+    },
+    MemberStatus.SUSPENDED: {
+        MemberStatus.ACTIVE,
+        MemberStatus.EXITED,
+    },
+    MemberStatus.REJECTED: set(),
+    MemberStatus.EXITED: set(),
+}
+
+
+class MemberStateMachine:
+    def __init__(self, status: MemberStatus) -> None:
+        self.current_status = status
+
+    def transition(self, target: MemberStatus) -> None:
+        if target not in _ALLOWED_TRANSITIONS[self.current_status]:
+            raise InvalidStateTransition(
+                f"Cannot transition from "
+                f"{self.current_status} to {target}."
+            )
+
+        self.current_status = target
+===== src/domain/membership/value_objects.py =====
+
+# domain/member/value_objects.py
+
+from dataclasses import dataclass
+from enum import StrEnum
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class MemberId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "MemberId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class EmailAddress:
+    value: str
+
+    def __post_init__(self) -> None:
+        value = self.value.strip().lower()
+
+        if not value or "@" not in value:
+            raise ValueError("Invalid email address.")
+
+        local, domain = value.rsplit("@", 1)
+
+        if not local or not domain or "." not in domain:
+            raise ValueError("Invalid email address.")
+
+        object.__setattr__(self, "value", value)
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class TaxInformation:
+    fiscal_code: str
+
+    def __post_init__(self) -> None:
+        normalized = self.fiscal_code.strip().upper()
+
+        if len(normalized) != 16:
+            raise ValueError("Fiscal code must contain 16 characters.")
+
+        object.__setattr__(self, "fiscal_code", normalized)
+
+
+@dataclass(frozen=True)
+class Address:
+    street: str
+    city: str
+    postal_code: str
+    country: str
+
+    def __post_init__(self) -> None:
+        if not all(
+            value.strip()
+            for value in (
+                self.street,
+                self.city,
+                self.postal_code,
+                self.country,
+            )
+        ):
+            raise ValueError("Address fields cannot be empty.")
+
+    @property
+    def full_address(self) -> str:
+        return (
+            f"{self.street}, "
+            f"{self.postal_code} {self.city}, "
+            f"{self.country}"
+        )
+
+
+class MemberRole(StrEnum):
+    CONSUMER = "CONSUMER"
+    PRODUCER = "PRODUCER"
+    PROSUMER = "PROSUMER"
+
+    def can_produce(self) -> bool:
+        return self in {
+            MemberRole.PRODUCER,
+            MemberRole.PROSUMER,
+        }
+
+    def can_consume(self) -> bool:
+        return self in {
+            MemberRole.CONSUMER,
+            MemberRole.PROSUMER,
+        }
+===== src/domain/membership/exceptions.py =====
+
+# src/domain/member/exceptions.py
+
+from domain.shared.exceptions import DomainException
+
+
+class MemberDomainError(DomainException):
+    """Base exception for membership domain errors."""
+
+
+class InvalidMemberRoleChange(MemberDomainError):
+    """Raised when a member cannot change role."""
+===== src/domain/membership/repositories.py =====
+
+# src/domain/membership/repositories.py
+
+from abc import ABC, abstractmethod
+
+from domain.membership.entities import Member
+from domain.membership.value_objects import EmailAddress, MemberId
+
+
+class MemberRepository(ABC):
+
+    @abstractmethod
+    def save(self, member: Member) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, member_id: MemberId) -> Member | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_by_email(
+        self,
+        email: EmailAddress,
+    ) -> Member | None:
+        raise NotImplementedError
+===== src/domain/shared_energy/__init__.py =====
+
+
+===== src/domain/shared_energy/value_objects.py =====
+
+# src/domain/shared_energy/value_objects.py
+
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class SharedEnergyId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "SharedEnergyId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class CalculationPeriod:
+    start: datetime
+    end: datetime
+
+    def __post_init__(self) -> None:
+        if self.start.tzinfo is None or self.end.tzinfo is None:
+            raise ValueError(
+                "Calculation period must use timezone-aware datetimes."
+            )
+
+        if self.start >= self.end:
+            raise ValueError(
+                "Calculation period start must precede end."
+            )
+===== src/domain/shared_energy/sharing_interval.py =====
+
+# src/domain/shared_energy/sharing_interval.py
+
+from dataclasses import dataclass
+
+from domain.energy.value_objects import EnergyInterval
+from domain.membership.value_objects import MemberId
+from domain.shared.energy import EnergyQuantity
+from domain.shared.exceptions import BusinessRuleViolation
+
+
+@dataclass(frozen=True)
+class MemberSharingInterval:
+    member_id: MemberId
+    interval: EnergyInterval
+    eligible_production: EnergyQuantity
+    eligible_consumption: EnergyQuantity
+    shared_energy: EnergyQuantity
+
+    def __post_init__(self) -> None:
+        if self.shared_energy.value > self.eligible_production.value:
+            raise BusinessRuleViolation(
+                "Shared energy cannot exceed eligible production."
+            )
+
+        if self.shared_energy.value > self.eligible_consumption.value:
+            raise BusinessRuleViolation(
+                "Shared energy cannot exceed eligible consumption."
+            )
+===== src/domain/shared_energy/calculator.py =====
+
+# src/domain/shared_energy/calculator.py
+
+from domain.shared.energy import EnergyQuantity
+from domain.shared.exceptions import BusinessRuleViolation
+from domain.shared_energy.sharing_interval import MemberSharingInterval
+
+
+class SharedEnergyCalculator:
+    """
+    Calculates shared energy for a single member and interval.
+
+    Shared energy is limited by both eligible production
+    and eligible consumption.
+    """
+
+    def calculate_interval(
+        self,
+        *,
+        member_id,
+        interval,
+        eligible_production: EnergyQuantity,
+        eligible_consumption: EnergyQuantity,
+    ) -> MemberSharingInterval:
+        if eligible_production.value < 0:
+            raise BusinessRuleViolation(
+                "Eligible production cannot be negative."
+            )
+
+        if eligible_consumption.value < 0:
+            raise BusinessRuleViolation(
+                "Eligible consumption cannot be negative."
+            )
+
+        shared = eligible_production.min(
+            eligible_consumption
+        )
+
+        return MemberSharingInterval(
+            member_id=member_id,
+            interval=interval,
+            eligible_production=eligible_production,
+            eligible_consumption=eligible_consumption,
+            shared_energy=shared,
+        )
+
+    def aggregate(
+        self,
+        intervals: list[MemberSharingInterval],
+    ) -> EnergyQuantity:
+        total = EnergyQuantity.zero()
+
+        for interval in intervals:
+            total = total.add(interval.shared_energy)
+
+        return total
+===== src/domain/shared_energy/events.py =====
+
+# src/domain/shared_energy/events.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.membership.value_objects import MemberId
+from domain.shared.domain_event import DomainEvent
+from domain.shared.energy import EnergyQuantity
+from domain.shared_energy.value_objects import (
+    CalculationPeriod,
+    SharedEnergyId,
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class SharedEnergyCalculated(DomainEvent):
+    shared_energy_id: SharedEnergyId # type: ignore[assignment]
+    cer_id: CerId # type: ignore[assignment]
+    member_id: MemberId # type: ignore[assignment]
+    calculation_period: CalculationPeriod  # type: ignore[assignment]
+    shared_energy: EnergyQuantity # type: ignore[assignment]
+    eligible_production: EnergyQuantity  # type: ignore[assignment]
+    eligible_consumption: EnergyQuantity # type: ignore[assignment]
+===== src/domain/shared_energy/exceptions.py =====
+
+# src/domain/shared_energy/exceptions.py
+
+from domain.shared.exceptions import DomainException
+
+
+class SharedEnergyDomainError(DomainException):
+    """Base exception for shared energy errors."""
+===== src/domain/shared_energy/shared_energy.py =====
+
+# src/domain/shared_energy/shared_energy.py
+
+from dataclasses import dataclass
+
+from domain.community.value_objects import CerId
+from domain.membership.value_objects import MemberId
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.energy import EnergyQuantity
+from domain.shared.exceptions import BusinessRuleViolation
+from domain.shared_energy.events import SharedEnergyCalculated
+from domain.shared_energy.value_objects import (
+    CalculationPeriod,
+    SharedEnergyId,
+)
+
+
+@dataclass
+class SharedEnergy(AggregateRoot):
+    id: SharedEnergyId
+    cer_id: CerId
+    member_id: MemberId
+    calculation_period: CalculationPeriod
+    eligible_production: EnergyQuantity
+    eligible_consumption: EnergyQuantity
+    shared_energy: EnergyQuantity
+
+    def __post_init__(self) -> None:
+        AggregateRoot.__init__(self)
+        self._validate_invariants()
+
+    @classmethod
+    def calculate(
+        cls,
+        *,
+        cer_id: CerId,
+        member_id: MemberId,
+        calculation_period: CalculationPeriod,
+        eligible_production: EnergyQuantity,
+        eligible_consumption: EnergyQuantity,
+        shared_energy_id: SharedEnergyId | None = None,
+    ) -> "SharedEnergy":
+        shared_energy = eligible_production.min(
+            eligible_consumption
+        )
+
+        aggregate = cls(
+            id=shared_energy_id or SharedEnergyId.generate(),
+            cer_id=cer_id,
+            member_id=member_id,
+            calculation_period=calculation_period,
+            eligible_production=eligible_production,
+            eligible_consumption=eligible_consumption,
+            shared_energy=shared_energy,
+        )
+
+        aggregate.add_event(
+            SharedEnergyCalculated(
+                shared_energy_id=aggregate.id,
+                cer_id=aggregate.cer_id,
+                member_id=aggregate.member_id,
+                calculation_period=aggregate.calculation_period,
+                shared_energy=aggregate.shared_energy,
+                eligible_production=aggregate.eligible_production,
+                eligible_consumption=aggregate.eligible_consumption,
+            )
+        )
+
+        return aggregate
+
+    def _validate_invariants(self) -> None:
+        if self.shared_energy.value > self.eligible_production.value:
+            raise BusinessRuleViolation(
+                "Shared energy cannot exceed eligible production."
+            )
+
+        if self.shared_energy.value > self.eligible_consumption.value:
+            raise BusinessRuleViolation(
+                "Shared energy cannot exceed eligible consumption."
+            )
+===== src/domain/shared_energy/repositories.py =====
+
+# src/domain/shared_energy/repositories.py
+
+from abc import ABC, abstractmethod
+
+from domain.shared_energy.shared_energy import SharedEnergy
+from domain.shared_energy.value_objects import SharedEnergyId
+
+
+class SharedEnergyRepository(ABC):
+
+    @abstractmethod
+    def save(self, shared_energy: SharedEnergy) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get(self, shared_energy_id: SharedEnergyId) -> SharedEnergy | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_for_member_period(
+        self,
+        member_id,
+        calculation_period,
+    ) -> SharedEnergy | None:
+        raise NotImplementedError

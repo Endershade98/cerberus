@@ -1,24 +1,41 @@
 # tests/unit/domain/shared/test_aggregate_root.py
 
-from src.domain.shared.aggregate_root import AggregateRoot
-from src.domain.shared.domain_event import DomainEvent
+from dataclasses import dataclass
+
+from domain.shared.aggregate_root import AggregateRoot
+from domain.shared.domain_event import DomainEvent
 
 
-class FakeEvent(DomainEvent):
+@dataclass(frozen=True)
+class DummyEvent(DomainEvent):
     pass
 
 
-def test_should_collect_events():
-    agg = AggregateRoot()
-    agg.add_event(FakeEvent())
-
-    assert len(agg.pull_events()) == 1
+@dataclass
+class DummyAggregate(AggregateRoot):
+    pass
 
 
-def test_should_clear_events():
-    agg = AggregateRoot()
-    agg.add_event(FakeEvent())
+def test_aggregate_starts_without_events():
+    aggregate = DummyAggregate()
 
-    agg.pull_events()
+    assert aggregate.pull_events() == []
 
-    assert agg.pull_events() == []
+
+def test_add_event_stores_event():
+    aggregate = DummyAggregate()
+    event = DummyEvent()
+
+    aggregate.add_event(event)
+
+    assert aggregate.pull_events() == [event]
+
+
+def test_pull_events_clears_event_queue():
+    aggregate = DummyAggregate()
+    event = DummyEvent()
+
+    aggregate.add_event(event)
+
+    assert aggregate.pull_events() == [event]
+    assert aggregate.pull_events() == []

@@ -2,7 +2,7 @@
 
 from django.db import transaction
 
-from src.domain.shared.unit_of_work import UnitOfWork
+from domain.shared.unit_of_work import UnitOfWork
 
 
 class DjangoUnitOfWork(UnitOfWork):

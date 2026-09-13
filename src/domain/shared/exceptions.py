@@ -1,12 +1,12 @@
-# domain/shared/exceptions.py
+# src/domain/shared/exceptions.py
 
 class DomainException(Exception):
-    """Base exception for domain layer."""
+    """Base exception for domain errors."""
 
 
 class BusinessRuleViolation(DomainException):
-    """Raised when a business invariant is violated."""
+    """Raised when a domain business rule is violated."""
 
 
 class InvalidStateTransition(DomainException):
-    """Raised when a state machine transition is invalid."""
+    """Raised when an aggregate cannot perform a state transition."""

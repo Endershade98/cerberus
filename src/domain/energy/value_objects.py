@@ -1,64 +1,113 @@
-# domain/energy/value_objects.py
+# src/domain/energy/value_objects.py
 
 from dataclasses import dataclass
-from datetime import datetime
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
+from uuid import UUID, uuid4
 
 
 @dataclass(frozen=True)
-class EnergyQuantity:
+class EnergyAssetId:
+    value: UUID
 
-    value: float
+    @classmethod
+    def generate(cls) -> "EnergyAssetId":
+        return cls(uuid4())
 
-
-    def __post_init__(self):
-
-        if self.value < 0:
-            raise ValueError(
-                "Energy cannot be negative"
-            )
-
-
-    def __add__(self, other):
-
-        return EnergyQuantity(
-            self.value + other.value
-        )
-
-
-    @staticmethod
-    def zero():
-
-        return EnergyQuantity(0)
-
-
-class FlowDirection(str, Enum):
-
-    PRODUCTION = "PRODUCTION"
-
-    CONSUMPTION = "CONSUMPTION"
-
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 @dataclass(frozen=True)
-class MeterReading:
+class EnergyDeviceId:
+    value: UUID
 
-    asset_id: str
-    timestamp: datetime
-    quantity: EnergyQuantity
-    direction: FlowDirection
+    @classmethod
+    def generate(cls) -> "EnergyDeviceId":
+        return cls(uuid4())
 
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 @dataclass(frozen=True)
-class TimeWindow:
+class EnergyReadingId:
+    value: UUID
 
+    @classmethod
+    def generate(cls) -> "EnergyReadingId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class EnergyBatchId:
+    value: UUID
+
+    @classmethod
+    def generate(cls) -> "EnergyBatchId":
+        return cls(uuid4())
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class PodCode:
+    value: str
+
+    def __post_init__(self) -> None:
+        value = self.value.strip().upper()
+
+        if len(value) < 5:
+            raise ValueError("POD code is too short.")
+
+        object.__setattr__(self, "value", value)
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class EnergyInterval:
     start: datetime
     end: datetime
 
+    def __post_init__(self) -> None:
+        if self.start.tzinfo is None or self.end.tzinfo is None:
+            raise ValueError("Energy interval must use timezone-aware datetimes.")
 
-    def contains(self, value):
+        if self.start >= self.end:
+            raise ValueError("Energy interval start must precede end.")
 
-        return (
-            self.start <= value <= self.end
-        )
+    def contains(self, timestamp: datetime) -> bool:
+        return self.start <= timestamp < self.end
+
+
+class EnergyDirection(StrEnum):
+    PRODUCTION = "PRODUCTION"
+    CONSUMPTION = "CONSUMPTION"
+
+
+class ReadingQuality(StrEnum):
+    MEASURED = "MEASURED"
+    ESTIMATED = "ESTIMATED"
+    CORRECTED = "CORRECTED"
+
+
+class EnergyAssetType(StrEnum):
+    PRODUCTION = "PRODUCTION"
+    CONSUMPTION = "CONSUMPTION"
+    PROSUMER = "PROSUMER"
+
+
+class EnergyAssetStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class EnergyDeviceStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"

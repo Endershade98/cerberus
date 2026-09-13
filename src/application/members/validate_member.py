@@ -1,6 +1,6 @@
 # application/members/validate_member.py
 
-from src.domain.member.exceptions import MemberDomainError
+from domain.membership.exceptions import MemberDomainError
 from src.application.common.use_case import UseCase
 
 

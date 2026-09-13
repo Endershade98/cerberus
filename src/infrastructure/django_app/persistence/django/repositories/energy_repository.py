@@ -1,10 +1,10 @@
 # infrastructure/django_app/persistence/django/repositories/energy_repository.py
 
-from src.domain.energy.entities import EnergyRecord
-from src.domain.energy.value_objects import EnergyQuantity
-from src.domain.energy.batch import EnergyBatch
+from domain.energy.entities import EnergyRecord
+from domain.energy.value_objects import EnergyQuantity
+from domain.energy.batch import EnergyBatch
 
-from src.domain.energy.repository import (
+from domain.energy.repositories import (
     EnergyRepository,
 )
 

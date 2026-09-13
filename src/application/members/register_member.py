@@ -1,7 +1,7 @@
 # application/members/register_member.py
 
 from src.application.common.use_case import UseCase
-from src.domain.member.entities import Member
+from domain.membership.entities import Member
 
 
 class RegisterMember(UseCase):

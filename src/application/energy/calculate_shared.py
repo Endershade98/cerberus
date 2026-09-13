@@ -4,7 +4,7 @@ from src.application.energy.dtos import (
     CalculateSharedEnergyRequest,
 )
 
-from src.domain.energy.aggregation_service import (
+from domain.energy.aggregation_service import (
     EnergyAggregationService,
 )
 

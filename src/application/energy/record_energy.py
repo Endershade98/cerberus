@@ -2,9 +2,9 @@
 
 from src.application.energy.dtos import RecordEnergyRequest
 
-from src.domain.energy.entities import EnergyRecord
-from src.domain.energy.events import EnergyRecorded
-from src.domain.energy.value_objects import EnergyQuantity
+from domain.energy.entities import EnergyRecord
+from domain.energy.events import EnergyRecorded
+from domain.energy.value_objects import EnergyQuantity
 
 
 

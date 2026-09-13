@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from src.domain.member.exceptions import MemberDomainError
-from src.domain.member.value_objects import MemberId
+from domain.membership.exceptions import MemberDomainError
+from domain.membership.value_objects import MemberId
 
 from src.application.members.register_member import RegisterMember
 from src.application.members.validate_member import ValidateMember

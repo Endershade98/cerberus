@@ -1,6 +1,6 @@
 # infrastructure/django_app/events/registry.py
 
-from src.domain.member.events import (
+from domain.membership.events import (
     MemberRegistered,
     MemberValidated,
     MemberActivated,
